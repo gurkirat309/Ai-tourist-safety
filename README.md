@@ -113,6 +113,32 @@ incident counts. A Colab-friendly notebook is in
 The numeric priors are **approximate, NCRB-informed, and easy to tune** — edit
 `ZONE_PRIORS` / the temporal multipliers as better figures become available.
 
+## Risk Intelligence agent (M4)
+
+The first **agentic LLM** component (the detection layer above is LLM-free by
+design). It periodically pulls risk signals from pluggable sources, uses the LLM
+to extract **structured, geo-tagged `risk_events`**, and writes them to Postgres
++ pgvector with grounding (`source` / `event_time` / `confidence`).
+
+- **Provider-agnostic** ([app/services/llm.py](app/services/llm.py)) — Groq by
+  default via the OpenAI-compatible API; provider/model/key all from env.
+- **Dry-run mode** — offline heuristic extraction over mock items, so the agent
+  is fully testable with no key or network.
+- **Pluggable sources** ([app/agents/sources.py](app/agents/sources.py)) — RSS
+  (Google News Bengaluru queries) + a mock source.
+- **Dedup + rate-limit resilience** — a Redis/in-memory seen-store and a
+  `source_url` check avoid re-processing; per-item errors (e.g. Groq 429) are
+  logged and skipped, never fatal. Scheduled runs are throttled
+  ([app/agents/scheduler.py](app/agents/scheduler.py)).
+
+```bash
+uv run python -m scripts.run_risk_agent          # dry-run (offline)  | make risk-agent
+uv run python -m scripts.run_risk_agent --live   # real RSS + Groq LLM
+```
+
+> Behind a TLS-intercepting proxy, the live LLM/RSS calls use the OS trust store
+> via `truststore` ([app/services/tls.py](app/services/tls.py)).
+
 ## Full stack in Docker (Definition of Done)
 
 The app container applies migrations on startup, then serves the API.
@@ -153,7 +179,7 @@ not logged at INFO or above.
 - [x] **M1 — Data layer:** models, schemas, migrations, retention helper, synthetic seed.
 - [x] **M2 — Fast detection layer:** geofencing, route deviation, inactivity, crowd density (deterministic, no LLM).
 - [x] **M3 — Area risk model:** Bengaluru priors + synthetic incidents, trained GBM, `predict_risk` inference.
-- [ ] M4 — Risk Intelligence agent.
+- [x] **M4 — Risk Intelligence agent:** pluggable sources → LLM-extracted geo-tagged risk_events (Groq, dry-run mode).
 - [ ] M5 — Incident Triage agent.
 - [ ] M6 — Orchestrator + escalation.
 - [ ] M7 — Backend APIs.

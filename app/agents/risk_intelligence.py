@@ -70,6 +70,7 @@ class RunResult:
     fetched: int = 0
     created: int = 0
     skipped: int = 0
+    errors: int = 0
     created_titles: list[str] = field(default_factory=list)
 
 
@@ -201,15 +202,21 @@ class RiskIntelligenceAgent:
                 if self.seen.is_seen(key) or self._already_in_db(item.url):
                     result.skipped += 1
                     continue
-                for ev in self._extract(item):
-                    self._persist(ev, item)
-                    result.created += 1
-                    result.created_titles.append(ev.title)
-                self.seen.mark_seen(key)
+                try:
+                    for ev in self._extract(item):
+                        self._persist(ev, item)
+                        result.created += 1
+                        result.created_titles.append(ev.title)
+                    self.seen.mark_seen(key)
+                except Exception as exc:  # noqa: BLE001
+                    # e.g. LLM rate limit (429) — log and continue, don't abort
+                    # the whole run or mark the item seen (retry next time).
+                    result.errors += 1
+                    log.warning("Item failed (%s): %s", item.url, exc)
         self.db.commit()
         log.info(
-            "RiskIntel run: fetched=%d created=%d skipped=%d",
-            result.fetched, result.created, result.skipped,
+            "RiskIntel run: fetched=%d created=%d skipped=%d errors=%d",
+            result.fetched, result.created, result.skipped, result.errors,
         )
         return result
 

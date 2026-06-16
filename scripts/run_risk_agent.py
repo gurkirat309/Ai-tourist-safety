@@ -45,7 +45,7 @@ def main() -> None:
         result = agent.run_once()
 
         print(f"\nfetched={result.fetched} created={result.created} "
-              f"skipped={result.skipped}")
+              f"skipped={result.skipped} errors={result.errors}")
         for title in result.created_titles:
             print(f"  + {title}")
     finally:

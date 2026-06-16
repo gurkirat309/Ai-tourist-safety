@@ -10,6 +10,7 @@ from app.db.models import RiskEvent
 from app.services.embeddings import embed
 from app.services.llm import LLMClient
 
+
 # --- embeddings (no DB) ---
 def test_embedding_dim_and_determinism():
     a = embed("chain snatching near Majestic")
@@ -82,6 +83,23 @@ def test_agent_dedup_skips_second_run(db_session):
     second = _agent(db_session).run_once()
     assert second.created == 0
     assert second.skipped == 2
+
+
+def test_agent_resilient_to_extraction_errors(db_session):
+    # An extractor that raises (e.g. LLM 429) must not abort the run.
+    _clear_source(db_session)
+    agent = RiskIntelligenceAgent(
+        db_session, [MockSource()],
+        llm=LLMClient(dry_run=True), seen_store=InMemorySeenStore(),
+    )
+
+    def boom(_item):
+        raise RuntimeError("rate limited")
+
+    agent._extract = boom  # type: ignore[method-assign]
+    result = agent.run_once()
+    assert result.created == 0
+    assert result.errors == 2  # both mock items failed, run completed
 
 
 def test_agent_custom_item_event_type(db_session):

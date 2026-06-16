@@ -1,7 +1,7 @@
 # Convenience targets. On Windows, run these via Git Bash, or use the raw
 # commands shown in the README if `make` is unavailable.
 
-.PHONY: help install infra-up infra-down stack-up stack-down dev test lint fmt migrate seed train demo-detection
+.PHONY: help install infra-up infra-down stack-up stack-down dev test lint fmt migrate seed train demo-detection risk-agent
 
 help:
 	@echo "install     - create venv and install deps (uv)"
@@ -17,6 +17,7 @@ help:
 	@echo "seed        - load synthetic data (M1)"
 	@echo "train       - train + export the area-risk model (M3)"
 	@echo "demo-detection - run detectors over seeded data (M2)"
+	@echo "risk-agent  - run Risk Intelligence agent once, dry-run (M4)"
 
 install:
 	uv venv
@@ -57,3 +58,6 @@ train:
 
 demo-detection:
 	uv run python -m scripts.demo_detection
+
+risk-agent:
+	uv run python -m scripts.run_risk_agent
