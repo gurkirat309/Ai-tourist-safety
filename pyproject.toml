@@ -31,6 +31,9 @@ dependencies = [
     "httpx>=0.27",
     "feedparser>=6.0",
     "beautifulsoup4>=4.12",
+    # Makes Python SSL use the OS trust store (needed behind TLS-intercepting
+    # proxies so the LLM/RSS HTTPS calls trust the corporate root CA).
+    "truststore>=0.9",
     # Scheduling
     "apscheduler>=3.10",
 ]

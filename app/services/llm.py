@@ -43,6 +43,9 @@ class LLMClient:
         if self._client is None:
             from openai import OpenAI
 
+            from app.services.tls import ensure_system_tls
+
+            ensure_system_tls()  # trust the OS cert store (proxy-friendly)
             self._client = OpenAI(base_url=self._base_url, api_key=self._api_key)
         return self._client
 

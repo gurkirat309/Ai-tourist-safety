@@ -85,6 +85,9 @@ class RSSSource:
         import feedparser
         import httpx
 
+        from app.services.tls import ensure_system_tls
+
+        ensure_system_tls()  # trust the OS cert store (proxy-friendly)
         try:
             # Fetch bytes with httpx (honours system certs better than urllib).
             resp = httpx.get(self.url, timeout=self.timeout_s, follow_redirects=True)
