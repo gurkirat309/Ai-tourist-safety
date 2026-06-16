@@ -32,7 +32,10 @@ def db_session():
 
     connection = engine.connect()
     trans = connection.begin()
-    session = Session(bind=connection)
+    # `create_savepoint` makes session.commit() release a SAVEPOINT instead of
+    # committing the outer transaction, so code under test that commits (e.g.
+    # the agent) stays isolated and is fully rolled back at teardown.
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
     try:
         yield session
     finally:
