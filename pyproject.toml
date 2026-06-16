@@ -1,0 +1,63 @@
+[project]
+name = "tourist-safety"
+version = "0.1.0"
+description = "AI-Orchestrated Multi-Agent System for Tourist Safety and Incident Intelligence (backend + agents + ML)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # API
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    # DB
+    "sqlalchemy>=2.0",
+    "geoalchemy2>=0.15",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+    # Cache / realtime
+    "redis>=5.1",
+    # Geo math
+    "shapely>=2.0",
+    "geopy>=2.4",
+    # ML (added/used from M3 onward, declared early so the env is stable)
+    "scikit-learn>=1.5",
+    "pandas>=2.2",
+    "numpy>=2.0",
+    "joblib>=1.4",
+    # Agents / fetching (used from M4 onward)
+    "openai>=1.50",
+    "httpx>=0.27",
+    "feedparser>=6.0",
+    "beautifulsoup4>=4.12",
+    # Scheduling
+    "apscheduler>=3.10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Migration files are machine-generated; notebooks are exploratory.
+extend-exclude = ["app/db/migrations/versions", "*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

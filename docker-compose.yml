@@ -1,0 +1,59 @@
+# docker-compose for local infra + app.
+# Hybrid dev: bring up `postgres` and `redis`, run the app locally with uvicorn.
+# Full stack (DoD): `docker compose --profile app up` also runs the `app` service.
+
+services:
+  postgres:
+    # PostGIS + pgvector in one image (geospatial + agent embeddings)
+    build:
+      context: .
+      dockerfile: docker/postgres.Dockerfile
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tourist}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tourist}
+      POSTGRES_DB: ${POSTGRES_DB:-tourist_safety}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tourist} -d ${POSTGRES_DB:-tourist_safety}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      args:
+        # 1 = allow insecure hosts during pip install (TLS-intercepting proxy).
+        UV_INSECURE: ${UV_INSECURE:-0}
+    env_file: .env
+    environment:
+      # Override hosts/ports so the containerized app reaches the other
+      # services over the compose network (internal port is always 5432).
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:

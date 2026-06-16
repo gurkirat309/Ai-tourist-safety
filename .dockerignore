@@ -1,0 +1,13 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.git/
+.gitignore
+*.egg-info/
+.env
+data/
+notebooks/.ipynb_checkpoints/
+*.joblib

@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual env / uv
+.venv/
+venv/
+uv.lock
+
+# Env / secrets
+.env
+*.env
+!.env.example
+
+# Test / cache
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ML artifacts
+*.joblib
+models/*.pkl
+data/raw/
+data/interim/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Notebooks
+.ipynb_checkpoints/
