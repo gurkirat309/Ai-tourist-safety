@@ -139,6 +139,28 @@ uv run python -m scripts.run_risk_agent --live   # real RSS + Groq LLM
 > Behind a TLS-intercepting proxy, the live LLM/RSS calls use the OS trust store
 > via `truststore` ([app/services/tls.py](app/services/tls.py)).
 
+## Incident Triage agent (M5)
+
+Given a flagged incident, the triage agent
+([app/agents/triage.py](app/agents/triage.py)) **deterministically gathers
+context** — containing zone + risk, nearby recent `risk_events` (PostGIS
+distance), recent pings, and the **M3 area-risk score** — then produces a concise
+summary and a recommended **escalation level**. Output is **advisory only**; the
+agent never dispatches responders.
+
+- The escalation level is computed by a **deterministic heuristic** (also the
+  dry-run path), kept as a **safety floor**: the LLM may write the prose but
+  cannot *downgrade* a serious incident.
+- `to_alert()` turns the result into an advisory `Alert` row (M6 persists it).
+
+```bash
+uv run python -m scripts.demo_triage     # triage a seeded incident | make demo-triage
+```
+
+Example output: a tourist entering the restricted Bannerghatta zone is triaged
+**HIGH**, citing the critical geofence signal, the area-risk score, and a nearby
+risk event — with recommended actions for a human operator.
+
 ## Full stack in Docker (Definition of Done)
 
 The app container applies migrations on startup, then serves the API.
@@ -180,6 +202,6 @@ not logged at INFO or above.
 - [x] **M2 — Fast detection layer:** geofencing, route deviation, inactivity, crowd density (deterministic, no LLM).
 - [x] **M3 — Area risk model:** Bengaluru priors + synthetic incidents, trained GBM, `predict_risk` inference.
 - [x] **M4 — Risk Intelligence agent:** pluggable sources → LLM-extracted geo-tagged risk_events (Groq, dry-run mode).
-- [ ] M5 — Incident Triage agent.
+- [x] **M5 — Incident Triage agent:** context gathering → advisory summary + escalation (heuristic safety floor + LLM prose).
 - [ ] M6 — Orchestrator + escalation.
 - [ ] M7 — Backend APIs.
