@@ -2,6 +2,10 @@
 # Hybrid dev: bring up `postgres` and `redis`, run the app locally with uvicorn.
 # Full stack (DoD): `docker compose --profile app up` also runs the `app` service.
 
+# Pinned project name so containers/volumes stay stable after the backend/
+# restructure (reuses the existing ai_tourist_safety-* containers and volume).
+name: ai_tourist_safety
+
 services:
   postgres:
     # PostGIS + pgvector in one image (geospatial + agent embeddings)
