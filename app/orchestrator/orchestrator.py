@@ -164,15 +164,31 @@ class SafetyOrchestrator:
         )
         result.incident_id = incident.id
         result.incident_created = created
-        result.log_line(
-            f"{'Created' if created else 'Reused'} incident {incident.id} "
-            f"({incident.incident_type.value})"
-        )
 
-        alert = self._triage_and_alert(incident)
-        result.alert_id = alert.id
-        result.escalation = alert.severity.value
-        result.log_line(f"Triage escalation={alert.severity.value} alert={alert.id}")
+        if created:
+            # Triage + alert only for new incidents (avoids alert spam and, in
+            # live mode, an LLM call on every ping of an ongoing incident).
+            alert = self._triage_and_alert(incident)
+            result.alert_id = alert.id
+            result.escalation = alert.severity.value
+            result.log_line(
+                f"Created incident {incident.id} ({incident.incident_type.value}); "
+                f"triage escalation={alert.severity.value} alert={alert.id}"
+            )
+        else:
+            existing = self.db.execute(
+                select(Alert)
+                .where(Alert.incident_id == incident.id)
+                .order_by(Alert.created_at.desc())
+                .limit(1)
+            ).scalars().first()
+            if existing is not None:
+                result.alert_id = existing.id
+                result.escalation = existing.severity.value
+            result.log_line(
+                f"Reused open incident {incident.id} "
+                f"({incident.incident_type.value}); context refreshed, no new alert"
+            )
 
         self.db.commit()
         return result

@@ -161,6 +161,28 @@ Example output: a tourist entering the restricted Bannerghatta zone is triaged
 **HIGH**, citing the critical geofence signal, the area-risk score, and a nearby
 risk event — with recommended actions for a human operator.
 
+## Orchestrator + escalation (M6)
+
+The explicit, debuggable controller ([app/orchestrator/orchestrator.py](app/orchestrator/orchestrator.py))
+that ties everything together. On each location update it:
+
+1. persists the ping,
+2. runs the **deterministic** detection layer (M2) — no LLM here,
+3. consults the **M3 area-risk score** and zone risk,
+4. applies escalation thresholds (a WARNING+ signal opens an incident),
+5. **creates/dedupes** an `Incident` (one open incident per tourist+type within
+   a window), then invokes the **Triage agent (M5)** to attach one advisory
+   `Alert`,
+6. records a **decision trace** for full traceability.
+
+The **panic button** (`trigger_panic`) bypasses thresholds for an immediate
+CRITICAL escalation. Control flow is plain Python — no agent frameworks — and
+nothing here dispatches responders automatically.
+
+```bash
+uv run python -m scripts.demo_orchestrator     # stream a trajectory + panic | make demo-orchestrator
+```
+
 ## Full stack in Docker (Definition of Done)
 
 The app container applies migrations on startup, then serves the API.
@@ -203,5 +225,5 @@ not logged at INFO or above.
 - [x] **M3 — Area risk model:** Bengaluru priors + synthetic incidents, trained GBM, `predict_risk` inference.
 - [x] **M4 — Risk Intelligence agent:** pluggable sources → LLM-extracted geo-tagged risk_events (Groq, dry-run mode).
 - [x] **M5 — Incident Triage agent:** context gathering → advisory summary + escalation (heuristic safety floor + LLM prose).
-- [ ] M6 — Orchestrator + escalation.
+- [x] **M6 — Orchestrator + escalation:** per-update detect→risk→threshold→incident→triage→alert, with a panic-bypass path and decision traces.
 - [ ] M7 — Backend APIs.

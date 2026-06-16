@@ -1,7 +1,7 @@
 # Convenience targets. On Windows, run these via Git Bash, or use the raw
 # commands shown in the README if `make` is unavailable.
 
-.PHONY: help install infra-up infra-down stack-up stack-down dev test lint fmt migrate seed train demo-detection risk-agent demo-triage
+.PHONY: help install infra-up infra-down stack-up stack-down dev test lint fmt migrate seed train demo-detection risk-agent demo-triage demo-orchestrator
 
 help:
 	@echo "install     - create venv and install deps (uv)"
@@ -19,6 +19,7 @@ help:
 	@echo "demo-detection - run detectors over seeded data (M2)"
 	@echo "risk-agent  - run Risk Intelligence agent once, dry-run (M4)"
 	@echo "demo-triage - triage an incident from seeded data (M5)"
+	@echo "demo-orchestrator - stream a trajectory + panic through the orchestrator (M6)"
 
 install:
 	uv venv
@@ -65,3 +66,6 @@ risk-agent:
 
 demo-triage:
 	uv run python -m scripts.demo_triage
+
+demo-orchestrator:
+	uv run python -m scripts.demo_orchestrator
