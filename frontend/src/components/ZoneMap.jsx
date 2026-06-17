@@ -1,7 +1,31 @@
-import { MapContainer, TileLayer, GeoJSON, CircleMarker, Popup } from "react-leaflet";
+import { useEffect } from "react";
+import L from "leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  GeoJSON,
+  CircleMarker,
+  Popup,
+  useMap,
+} from "react-leaflet";
 import { ZONE_COLORS, titleCase, fmtTime } from "../lib/format";
 
 const BENGALURU = [12.95, 77.62];
+
+// Fit the view to the zone polygons once they load.
+function FitToZones({ geojson }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!geojson?.features?.length) return;
+    try {
+      const bounds = L.geoJSON(geojson).getBounds();
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
+    } catch {
+      /* ignore */
+    }
+  }, [geojson, map]);
+  return null;
+}
 
 function zoneStyle(feature) {
   const cat = feature.properties.risk_category;
@@ -29,6 +53,8 @@ export default function ZoneMap({
   height = 460,
   center = BENGALURU,
   zoom = 12,
+  fit = false,
+  onIncidentClick,
 }) {
   return (
     <div style={{ height }}>
@@ -37,6 +63,7 @@ export default function ZoneMap({
           attribution='&copy; OpenStreetMap'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        {fit && <FitToZones geojson={geojson} />}
         {geojson && (
           <GeoJSON
             key={geojson.features?.length || 0}
@@ -60,6 +87,14 @@ export default function ZoneMap({
                   <div className="font-semibold">{titleCase(i.incident_type)}</div>
                   <div>Status: {i.status}</div>
                   <div>{fmtTime(i.detected_at)}</div>
+                  {onIncidentClick && (
+                    <button
+                      onClick={() => onIncidentClick(i.id)}
+                      className="mt-1 font-medium text-blue-600 hover:underline"
+                    >
+                      View details →
+                    </button>
+                  )}
                 </div>
               </Popup>
             </CircleMarker>

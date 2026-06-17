@@ -17,6 +17,8 @@ import {
 } from "../lib/format";
 import { Card, StatCard, Badge, Button, Field, Input, Empty, Spinner } from "../components/ui";
 import ZoneMap from "../components/ZoneMap";
+import Drawer from "../components/Drawer";
+import IncidentDetail from "../components/IncidentDetail";
 
 export default function Dashboard() {
   const [geojson, setGeojson] = useState(null);
@@ -25,6 +27,8 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const [updatedAt, setUpdatedAt] = useState(null);
 
   async function load() {
     try {
@@ -38,6 +42,7 @@ export default function Dashboard() {
       setZones(zs);
       setIncidents(inc);
       setAlerts(al);
+      setUpdatedAt(new Date());
       setError(null);
     } catch (e) {
       setError(e.message);
@@ -72,9 +77,16 @@ export default function Dashboard() {
             Live zones, incidents, and advisory alerts for Bengaluru.
           </p>
         </div>
-        <Button variant="ghost" onClick={load}>
-          <RefreshCw size={16} /> Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          {updatedAt && (
+            <span className="text-xs text-slate-400">
+              Updated {updatedAt.toLocaleTimeString()}
+            </span>
+          )}
+          <Button variant="ghost" onClick={load}>
+            <RefreshCw size={16} /> Refresh
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -92,7 +104,13 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Card title="Live map" className="xl:col-span-2">
-          <ZoneMap geojson={geojson} incidents={incidents} height={460} />
+          <ZoneMap
+            geojson={geojson}
+            incidents={incidents}
+            height={460}
+            fit
+            onIncidentClick={setSelectedId}
+          />
           <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
             <Legend color="#10b981" label="Low" />
             <Legend color="#f59e0b" label="Moderate" />
@@ -136,7 +154,11 @@ export default function Dashboard() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {incidents.slice(0, 8).map((i) => (
-                    <tr key={i.id}>
+                    <tr
+                      key={i.id}
+                      onClick={() => setSelectedId(i.id)}
+                      className="cursor-pointer transition hover:bg-slate-50"
+                    >
                       <td className="py-2 font-medium text-slate-700">
                         {titleCase(i.incident_type)}
                       </td>
@@ -160,18 +182,30 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-3">
               {alerts.slice(0, 6).map((a) => (
-                <div key={a.id} className="rounded-lg border border-slate-100 p-3">
+                <button
+                  key={a.id}
+                  onClick={() => setSelectedId(a.incident_id)}
+                  className="block w-full rounded-lg border border-slate-100 p-3 text-left transition hover:border-slate-200 hover:bg-slate-50"
+                >
                   <div className="mb-1 flex items-center justify-between">
                     <Badge className={SEVERITY_STYLES[a.severity]}>{a.severity}</Badge>
                     <span className="text-xs text-slate-400">{fmtTime(a.created_at)}</span>
                   </div>
                   <p className="text-sm text-slate-700">{a.summary || "—"}</p>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </Card>
       </div>
+
+      <Drawer
+        open={!!selectedId}
+        onClose={() => setSelectedId(null)}
+        title="Incident detail"
+      >
+        {selectedId && <IncidentDetail incidentId={selectedId} />}
+      </Drawer>
     </div>
   );
 }
