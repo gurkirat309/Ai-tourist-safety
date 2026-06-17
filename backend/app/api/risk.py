@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query
+from shapely.geometry import mapping
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.api.serializers import zone_out
 from app.db.models import Zone
+from app.db.spatial import geom_to_shape
 from app.detection.adapters import containing_zone
 from app.schemas.api import (
     AreaRiskResponse,
@@ -52,6 +55,25 @@ def area_risk(
 def list_zones(db: Session = Depends(get_db)) -> list[ZoneRiskOut]:
     zones = db.execute(select(Zone).order_by(Zone.name)).scalars().all()
     return [zone_out(z) for z in zones]
+
+
+@router.get("/zones.geojson")
+def zones_geojson(db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Zones as a GeoJSON FeatureCollection (polygons + risk props) for maps."""
+    features = []
+    for z in db.execute(select(Zone)).scalars():
+        features.append({
+            "type": "Feature",
+            "geometry": mapping(geom_to_shape(z.geom)),
+            "properties": {
+                "id": str(z.id),
+                "name": z.name,
+                "risk_category": z.risk_category.value,
+                "restricted": z.restricted,
+                "capacity": z.capacity,
+            },
+        })
+    return {"type": "FeatureCollection", "features": features}
 
 
 @router.get("/zone", response_model=ContainingZoneResponse)

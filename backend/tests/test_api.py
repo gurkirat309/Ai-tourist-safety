@@ -112,6 +112,18 @@ def test_list_zones_includes_added(client, db_session):
     assert "API Restricted" in names
 
 
+def test_zones_geojson(client, db_session):
+    _add_restricted_zone(db_session)
+    resp = client.get("/risk/zones.geojson")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["type"] == "FeatureCollection"
+    assert len(body["features"]) >= 1
+    feat = next(f for f in body["features"] if f["properties"]["name"] == "API Restricted")
+    assert feat["geometry"]["type"] == "Polygon"
+    assert feat["properties"]["restricted"] is True
+
+
 def test_zone_at_point(client, db_session):
     _add_restricted_zone(db_session)
     resp = client.get("/risk/zone", params={"lat": ZLAT, "lon": ZLON})
