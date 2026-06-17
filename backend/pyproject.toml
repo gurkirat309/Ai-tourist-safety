@@ -64,3 +64,5 @@ extend-exclude = ["app/db/migrations/versions", "*.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+# B008: Depends()/Query() in argument defaults is the idiomatic FastAPI pattern.
+ignore = ["B008"]

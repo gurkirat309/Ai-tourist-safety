@@ -183,6 +183,34 @@ nothing here dispatches responders automatically.
 uv run python -m scripts.demo_orchestrator     # stream a trajectory + panic | make demo-orchestrator
 ```
 
+## Backend APIs (M7)
+
+FastAPI endpoints a future frontend will consume ([app/api/](app/api/)). Auto
+OpenAPI docs at **http://localhost:8000/docs**.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/tourists` | Register a tourist + consent (DPDP retention set) |
+| GET | `/tourists/{id}` | Fetch a tourist |
+| POST | `/tourists/{id}/pings` | **Ingest a location ping → runs the orchestrator** |
+| POST | `/tourists/{id}/panic` | Panic button → immediate CRITICAL escalation |
+| GET | `/risk/area?lat&lon&when` | M3 area-risk score for a point/time |
+| GET | `/risk/zones` | List zones with risk category |
+| GET | `/risk/zone?lat&lon` | Containing zone + area risk at a point |
+| GET | `/incidents` | List incidents (filter by status/tourist) |
+| GET | `/incidents/{id}` | Incident detail with its alerts |
+| GET | `/alerts` | List advisory alerts |
+
+```bash
+uv run uvicorn app.main:app --reload      # then open /docs   | make dev
+```
+
+**Real-time path stays LLM-free:** ingest/panic run the deterministic detectors
+and a heuristic triage (escalation is a deterministic safety floor), so the
+request never blocks on a live LLM; the live LLM is reserved for the scheduled
+Risk Intelligence agent (M4). Location ingest is refused (403) without consent
+(DPDP).
+
 ## Full stack in Docker (Definition of Done)
 
 The app container applies migrations on startup, then serves the API.
@@ -226,4 +254,4 @@ not logged at INFO or above.
 - [x] **M4 — Risk Intelligence agent:** pluggable sources → LLM-extracted geo-tagged risk_events (Groq, dry-run mode).
 - [x] **M5 — Incident Triage agent:** context gathering → advisory summary + escalation (heuristic safety floor + LLM prose).
 - [x] **M6 — Orchestrator + escalation:** per-update detect→risk→threshold→incident→triage→alert, with a panic-bypass path and decision traces.
-- [ ] M7 — Backend APIs.
+- [x] **M7 — Backend APIs:** register/consent, ingest→orchestrator, panic, risk queries, incidents/alerts listing, OpenAPI docs.
