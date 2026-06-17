@@ -8,14 +8,17 @@ watches for risk events, and prepares decision-ready alerts for authorities.
 
 ```
 .
-├── backend/    # Python: FastAPI APIs, AI agents, ML pipeline  (this phase)
-└── frontend/   # React + Tailwind UI                            (planned)
+├── backend/         # Python: FastAPI APIs, AI agents, ML pipeline
+├── frontend/        # React + Tailwind UI (Police Dashboard + Tourist Portal)
+└── DOCUMENTATION.md # full project documentation (architecture, diagrams, data)
 ```
 
-- **[backend/](backend/)** — fully built this phase. See
-  [backend/README.md](backend/README.md) for setup, run, and per-milestone docs.
-- **[frontend/](frontend/)** — placeholder for the tourist portal + police
-  dashboard; see [frontend/README.md](frontend/README.md).
+- **[backend/](backend/)** — FastAPI + agents + ML. See
+  [backend/README.md](backend/README.md) for per-milestone docs.
+- **[frontend/](frontend/)** — React + Tailwind app (Leaflet map). See
+  [frontend/README.md](frontend/README.md).
+- **[DOCUMENTATION.md](DOCUMENTATION.md)** — the complete, detailed write-up:
+  architecture diagrams, tech-stack rationale, data, and how it was built.
 
 ## Architecture (two layers)
 
