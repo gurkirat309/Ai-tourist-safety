@@ -107,8 +107,15 @@ predict_risk(12.9770, 77.5720, datetime(2026, 6, 20, 22, tzinfo=UTC))  # -> 0..1
 
 The score is the probability of an incident in that grid cell within the next
 few hours, given location, time-of-day/day-of-week, the zone prior, and recent
-incident counts. A Colab-friendly notebook is in
-[notebooks/risk_model_training.ipynb](notebooks/risk_model_training.ipynb).
+incident counts.
+
+**Colab notebook (self-contained):**
+[notebooks/area_risk_training_colab.ipynb](notebooks/area_risk_training_colab.ipynb)
+runs end-to-end on Google Colab with no repo checkout — full dataset stats and
+visualizations (prior heatmap, temporal patterns, incident maps, feature
+distributions/correlation), training, evaluation (accuracy, ROC-AUC, average
+precision, confusion matrix, ROC/PR curves), permutation importance, and the
+learned day-vs-night risk surface. Reproduces the shipped model exactly.
 
 The numeric priors are **approximate, NCRB-informed, and easy to tune** — edit
 `ZONE_PRIORS` / the temporal multipliers as better figures become available.
