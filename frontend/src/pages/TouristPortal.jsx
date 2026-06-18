@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Navigation,
   Siren,
-  LocateFixed,
   Route as RouteIcon,
   Play,
   Square,
@@ -11,8 +9,9 @@ import {
 } from "lucide-react";
 import { api } from "../lib/api";
 import { SEVERITY_STYLES, riskLevel, titleCase } from "../lib/format";
-import { Card, Badge, Button, Field, Input, Spinner, Empty } from "../components/ui";
+import { Card, Badge, Button, Spinner, Empty } from "../components/ui";
 import ZoneMap from "../components/ZoneMap";
+import PlacePicker from "../components/PlacePicker";
 import AssistantWidget from "../components/AssistantWidget";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -27,8 +26,9 @@ export default function TouristPortal() {
   const [geojson, setGeojson] = useState(null);
   const [status, setStatus] = useState(null);
   const [trip, setTrip] = useState(null);
-  const [start, setStart] = useState({ lat: "12.9716", lon: "77.5946" }); // MG Road-ish
-  const [dest, setDest] = useState({ lat: "12.8000", lon: "77.5770" }); // Bannerghatta (restricted)
+  const [places, setPlaces] = useState([]);
+  const [start, setStart] = useState(null); // { name, lat, lon }
+  const [dest, setDest] = useState(null); // { name, lat, lon }
   const [pos, setPos] = useState(null); // current marker {lat,lon}
   const [busy, setBusy] = useState(null);
   const [deviate, setDeviate] = useState(false);
@@ -48,10 +48,15 @@ export default function TouristPortal() {
 
   useEffect(() => {
     api.zonesGeojson().then(setGeojson).catch(() => {});
+    api.places().then((d) => setPlaces(d.places || [])).catch(() => {});
     loadStatus();
   }, []);
 
   async function planTrip() {
+    if (!start || !dest) {
+      setErr("Pick a start and a destination first.");
+      return;
+    }
     setBusy("plan");
     setErr(null);
     try {
@@ -74,11 +79,15 @@ export default function TouristPortal() {
   }
 
   async function panic() {
+    const p = pos || start;
+    if (!p) {
+      setErr("Share a location (pick a start or send your location) before panic.");
+      return;
+    }
     setBusy("panic");
     setErr(null);
     try {
-      const p = pos || { lat: Number(start.lat), lon: Number(start.lon) };
-      await api.myPanic({ location: { lat: p.lat, lon: p.lon } });
+      await api.myPanic({ location: { lat: Number(p.lat), lon: Number(p.lon) } });
       await loadStatus();
     } catch (e) {
       setErr(e.message);
@@ -115,11 +124,12 @@ export default function TouristPortal() {
     }
   }
 
-  function useMyLocation() {
-    navigator.geolocation?.getCurrentPosition((p) =>
-      setStart({ lat: p.coords.latitude.toFixed(4), lon: p.coords.longitude.toFixed(4) })
+  // A few quick-pick destination chips from the curated list.
+  const quickPicks = places
+    .filter((p) =>
+      ["Cubbon Park", "Lalbagh Botanical Garden", "Bangalore Palace",
+       "Bannerghatta National Park", "MG Road"].includes(p.name)
     );
-  }
 
   const routeColor = trip ? riskLevel(trip.safety.max_score).color : "#2563eb";
 
@@ -139,17 +149,39 @@ export default function TouristPortal() {
 
           <Card title="Plan a trip">
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Start lat"><Input value={start.lat} onChange={(e) => setStart({ ...start, lat: e.target.value })} /></Field>
-                <Field label="Start lon"><Input value={start.lon} onChange={(e) => setStart({ ...start, lon: e.target.value })} /></Field>
-              </div>
-              <Button variant="ghost" onClick={useMyLocation} className="w-full">
-                <LocateFixed size={16} /> Use my location as start
-              </Button>
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Destination lat"><Input value={dest.lat} onChange={(e) => setDest({ ...dest, lat: e.target.value })} /></Field>
-                <Field label="Destination lon"><Input value={dest.lon} onChange={(e) => setDest({ ...dest, lon: e.target.value })} /></Field>
-              </div>
+              <PlacePicker
+                label="Starting point"
+                value={start}
+                onChange={setStart}
+                curated={places}
+                allowMyLocation
+                placeholder="Where are you now?"
+              />
+              <PlacePicker
+                label="Destination"
+                value={dest}
+                onChange={setDest}
+                curated={places}
+                placeholder="Where do you want to go?"
+              />
+
+              {quickPicks.length > 0 && (
+                <div>
+                  <div className="mb-1 text-xs font-medium text-slate-400">Popular destinations</div>
+                  <div className="flex flex-wrap gap-2">
+                    {quickPicks.map((p) => (
+                      <button
+                        key={p.name}
+                        onClick={() => setDest({ name: p.name, lat: p.lat, lon: p.lon })}
+                        className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600 transition hover:bg-brand-50 hover:text-brand-700"
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <Button onClick={planTrip} disabled={busy === "plan"} className="w-full">
                 {busy === "plan" ? <Spinner /> : <RouteIcon size={16} />} Plan route
               </Button>

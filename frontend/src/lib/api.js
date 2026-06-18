@@ -55,6 +55,10 @@ export const api = {
   ingestPing: (id, body) => request(`/tourists/${id}/pings`, { method: "POST", body }),
   panic: (id, body) => request(`/tourists/${id}/panic`, { method: "POST", body }),
 
+  // Places (trip planning)
+  places: () => request("/places"),
+  placeSearch: (q) => request("/places/search", { params: { q } }),
+
   // Tourist self-service (/me)
   planTrip: (body) => request("/me/trip", { method: "POST", body }),
   myStatus: () => request("/me/status"),
