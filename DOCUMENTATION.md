@@ -135,8 +135,9 @@ flowchart TB
     CRW["Crowd density"]
   end
 
-  subgraph MLB["ML — Area-Risk Model (scikit-learn)"]
-    RM["predict_risk(lat, lon, time)"]
+  subgraph MLB["ML models"]
+    RM["Area-risk model (scikit-learn)<br/>predict_risk(lat, lon, time)"]
+    LSTM["LSTM trajectory-anomaly (PyTorch)<br/>advisory signal"]
   end
 
   subgraph AGENTS["Layer 2 — Agentic LLM (grounded, advisory)"]
@@ -158,6 +159,7 @@ flowchart TB
   ROUTERS --> CTRL
   CTRL --> GEO & DEV & INA & CRW
   CTRL --> RM
+  CTRL --> LSTM
   CTRL --> TRI
   TRI --> LLMW
   RI --> LLMW
@@ -188,7 +190,8 @@ flowchart TB
 | **Alembic** | DB migrations | Versioned, reversible schema changes; enables `postgis`/`vector` extensions in a migration. |
 | **Redis** | Live cache + dedup + pub/sub bus | Fast ephemeral store for the live-location cache and the agent's "already-seen" set so we don't re-process or re-call the LLM. |
 | **Shapely + geopy** | Geometry & distance math | Shapely for projections/containment; geopy for accurate **geodesic** distances in meters. |
-| **scikit-learn (HistGradientBoostingClassifier)** | The area-risk model | Classical, tabular, CPU-only, fast to train and serve. No GPU/deep-learning needed for this signal. |
+| **scikit-learn (HistGradientBoostingClassifier)** | The area-risk model (model #1) | Classical, tabular, CPU-only, fast to train and serve. No GPU/deep-learning needed for this signal. |
+| **PyTorch (CPU)** | The LSTM trajectory-anomaly model (model #2, optional `[lstm]` extra) | An LSTM is the right fit for *sequence* anomaly (movement over time); CPU wheel, small model. Advisory only. |
 | **pandas / numpy** | Feature engineering, dataset simulation | Standard data tooling; vectorized Poisson simulation. |
 | **joblib** | Model serialization | Standard for scikit-learn artifacts; the model is a self-contained `.joblib` bundle. |
 | **Groq (via the OpenAI SDK)** | LLM for the agents | Free tier, **OpenAI-compatible API**, fast inference. Used through a thin provider-agnostic wrapper so the provider is an env change, not a code change. |
@@ -197,7 +200,7 @@ flowchart TB
 | **truststore** | TLS behind corporate proxies | Routes Python TLS through the OS certificate store so live LLM/RSS calls work behind TLS-intercepting networks. |
 | **uv** | Python packaging / venv | Extremely fast, reproducible installs; single `pyproject.toml`. |
 | **Docker + docker-compose** | Local infra (Postgres+PostGIS+pgvector, Redis, app) | One command brings up the whole stack; reproducible across machines. |
-| **pytest** | Testing | The de-facto Python test framework; **90 tests** across the codebase. |
+| **pytest** | Testing | The de-facto Python test framework; **92 tests** across the codebase. |
 | **ruff** | Lint + format | Fast, all-in-one linter/formatter. |
 
 ### Frontend
@@ -484,13 +487,36 @@ in `thresholds.py`:
 - Crowd flags at **>90%** of zone capacity (warn at 75%).
 - Distances use **geodesic** math (geopy) for real meters.
 
-### 10.2 Area-risk model (`app/ml/`)
+### 10.2 The two trained ML models
+
+The system now ships **two trained models** (it began with only the area-risk
+model; the LSTM was added later as an advisory layer):
+
+**Model #1 — Area-risk model** (`app/ml/`, scikit-learn `HistGradientBoosting`).
 Features: `hour, dow, is_weekend, is_night, lat, lon, zone_prior,
 recent_incidents`. The **label** is "an incident occurs in this cell within the
 next 6 hours" — a forward window that's both learnable and operationally
-meaningful ("how risky is this area soon?"). The model bundle stores the
-classifier + a per-cell recent-count baseline (so serving is self-contained) +
-metadata/metrics.
+meaningful ("how risky is this area soon?"). The bundle stores the classifier +
+a per-cell recent-count baseline (self-contained serving) + metrics. Synthetic
+metrics: **ROC-AUC ≈ 0.66, accuracy ≈ 0.89**. Served by `predict_risk(lat, lon,
+time)`.
+
+**Model #2 — LSTM trajectory-anomaly model** (`app/ml/lstm/`, PyTorch —
+**new**). A small LSTM over a sliding window of movement features (per-step
+distance, speed, turn angle, time gap) that flags **anomalous movement patterns
+from the trajectory's shape alone** — complementing the geometric
+route-deviation detector (which needs a planned route; the LSTM doesn't).
+Trained on synthetic normal vs deviating trajectories: **ROC-AUC ≈ 0.97,
+accuracy ≈ 0.92** (a clean route scores ~0.00, a deviating one ~0.99). It is
+**optional and advisory**: wired into the orchestrator as a `ml.trajectory_lstm`
+warning signal, but **never replaces the deterministic safety floor**, and is
+silently skipped if PyTorch / the model artifact is absent. Why an LSTM:
+sequence/temporal anomaly is exactly what recurrent nets are good at, and it
+stays CPU-only and small.
+
+> Both are classical/compact CPU models exported as artifacts (`.joblib` and
+> `.pt`). Neither sits on the life-safety hot path as a gate — area-risk informs
+> escalation, the LSTM is advisory.
 
 ### 10.3 The agents (`app/agents/`) and LLM wrapper (`app/services/llm.py`)
 - **Provider-agnostic wrapper:** uses the OpenAI SDK pointed at Groq's base URL;
@@ -632,7 +658,7 @@ npm run dev                                # http://127.0.0.1:8080
 
 ## 15. Testing
 
-**90 automated tests** (pytest), all passing, covering:
+**92 automated tests** (pytest), all passing, covering:
 
 | Area | What's tested |
 |---|---|
@@ -645,6 +671,11 @@ npm run dev                                # http://127.0.0.1:8080
 | Triage (M5) | Escalation heuristic, context gathering, full triage, alert building. |
 | Orchestrator (M6) | Normal vs incident, dedup, panic-bypass, decision trace. |
 | API (M7) | Register/consent, 403-without-consent, ingest→incident, panic, risk, zones GeoJSON, incident/alert listing. |
+| Auth & roles | Signup/login/me, duplicate email, wrong password, invalid token, police vs tourist. |
+| Tourist `/me` | Trip planning (routing stubbed), status, pings, panic, role enforcement. |
+| Police | Active-tourist list + status, tourist detail/timeline, risk-events, tourist-blocked-403. |
+| Places | Curated suggestions, search validation. |
+| LSTM (model #2) | Feature extraction, dataset windows, graceful scorer, normal-vs-deviating separation. |
 
 DB-backed tests run inside a transaction that's rolled back (with SAVEPOINT
 isolation so even code that commits stays isolated); they skip gracefully if
@@ -702,12 +733,15 @@ external provider (e.g. Clerk) later. `require_role(...)` guards endpoints; the
 React app has role-based protected routing.
 
 **Tourist experience** ([app/api/me.py](backend/app/api/me.py)). The
-authenticated tourist plans a trip (real **OSRM** road route via
-[routing.py](backend/app/services/routing.py), straight-line fallback), gets a
-**safety score sampled along the route**, streams location (trip simulation in
-the demo), and sees live status from the four engines — **safety information
-only, never crime specifics**. A panic button and an AI-assistant placeholder
-are present.
+authenticated tourist chooses **start + destination from a place picker** —
+curated Bengaluru destinations, free-text **geocoding** (OpenStreetMap Nominatim
+via [places.py](backend/app/services/places.py)), and "use my current
+location" — instead of raw coordinates. They plan a trip (real **OSRM** road
+route via [routing.py](backend/app/services/routing.py), straight-line
+fallback), get a **safety score sampled along the route**, stream location (trip
+simulation in the demo), and see live status from the four engines — **safety
+information only, never crime specifics**. A panic button and an AI-assistant
+placeholder are present.
 
 **Police experience** ([app/api/police.py](backend/app/api/police.py)). Police
 see **all tourists** with live position + status, per-tourist activity, and the
