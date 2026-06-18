@@ -9,7 +9,13 @@ import {
   Popup,
   useMap,
 } from "react-leaflet";
-import { ZONE_COLORS, riskLevel, titleCase, fmtTime } from "../lib/format";
+import {
+  ZONE_COLORS,
+  TOURIST_STATUS_COLORS,
+  riskLevel,
+  titleCase,
+  fmtTime,
+} from "../lib/format";
 
 const BENGALURU = [12.95, 77.62];
 
@@ -69,6 +75,8 @@ export default function ZoneMap({
   routeColor = "#2563eb",
   safetyPoints = [],
   follow = false,
+  tourists = [],
+  onTouristClick,
 }) {
   return (
     <div style={{ height }}>
@@ -130,6 +138,37 @@ export default function ZoneMap({
                   {onIncidentClick && (
                     <button
                       onClick={() => onIncidentClick(i.id)}
+                      className="mt-1 font-medium text-blue-600 hover:underline"
+                    >
+                      View details →
+                    </button>
+                  )}
+                </div>
+              </Popup>
+            </CircleMarker>
+          ))}
+
+        {tourists
+          .filter((t) => t.last_position)
+          .map((t) => (
+            <CircleMarker
+              key={t.id}
+              center={[t.last_position.lat, t.last_position.lon]}
+              radius={8}
+              pathOptions={{
+                color: "#1e293b",
+                weight: 2,
+                fillColor: TOURIST_STATUS_COLORS[t.status] || "#3b82f6",
+                fillOpacity: 0.95,
+              }}
+            >
+              <Popup>
+                <div className="text-xs">
+                  <div className="font-semibold">{t.display_name || "Tourist"}</div>
+                  <div>Status: {t.status}</div>
+                  {onTouristClick && (
+                    <button
+                      onClick={() => onTouristClick(t.id)}
                       className="mt-1 font-medium text-blue-600 hover:underline"
                     >
                       View details →

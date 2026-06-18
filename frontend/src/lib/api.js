@@ -67,8 +67,11 @@ export const api = {
   zonesGeojson: () => request("/risk/zones.geojson"),
   zoneAt: (lat, lon) => request("/risk/zone", { params: { lat, lon } }),
 
-  // Authorities
+  // Authorities (police-only)
   incidents: (params) => request("/incidents", { params }),
   incident: (id) => request(`/incidents/${id}`),
   alerts: (params) => request("/alerts", { params }),
+  policeTourists: () => request("/police/tourists"),
+  policeTourist: (id) => request(`/police/tourists/${id}`),
+  riskEvents: (params) => request("/police/risk-events", { params }),
 };

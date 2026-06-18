@@ -2,15 +2,16 @@ import { useEffect, useState } from "react";
 import {
   TriangleAlert,
   BellRing,
-  MapPinned,
-  Flame,
+  Users,
   Search,
   RefreshCw,
+  Newspaper,
 } from "lucide-react";
 import { api } from "../lib/api";
 import {
   SEVERITY_STYLES,
   RISK_STYLES,
+  TOURIST_STATUS_STYLES,
   riskLevel,
   fmtTime,
   titleCase,
@@ -19,29 +20,37 @@ import { Card, StatCard, Badge, Button, Field, Input, Empty, Spinner } from "../
 import ZoneMap from "../components/ZoneMap";
 import Drawer from "../components/Drawer";
 import IncidentDetail from "../components/IncidentDetail";
+import TouristDetail from "../components/TouristDetail";
 
 export default function Dashboard() {
   const [geojson, setGeojson] = useState(null);
   const [zones, setZones] = useState([]);
   const [incidents, setIncidents] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [tourists, setTourists] = useState([]);
+  const [riskEvents, setRiskEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedTouristId, setSelectedTouristId] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
 
   async function load() {
     try {
-      const [gj, zs, inc, al] = await Promise.all([
+      const [gj, zs, inc, al, ts, re] = await Promise.all([
         api.zonesGeojson(),
         api.zones(),
         api.incidents({ limit: 100 }),
         api.alerts({ limit: 50 }),
+        api.policeTourists(),
+        api.riskEvents({ limit: 50 }),
       ]);
       setGeojson(gj);
       setZones(zs);
       setIncidents(inc);
       setAlerts(al);
+      setTourists(ts);
+      setRiskEvents(re);
       setUpdatedAt(new Date());
       setError(null);
     } catch (e) {
@@ -58,7 +67,7 @@ export default function Dashboard() {
   }, []);
 
   const openIncidents = incidents.filter((i) => i.status === "open").length;
-  const criticalAlerts = alerts.filter((a) => a.severity === "critical").length;
+  const flagged = tourists.filter((t) => t.status === "panic" || t.status === "alert").length;
 
   if (loading) {
     return (
@@ -96,10 +105,10 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={TriangleAlert} label="Open incidents" value={openIncidents} tone="amber" />
-        <StatCard icon={BellRing} label="Alerts" value={alerts.length} tone="brand" />
-        <StatCard icon={Flame} label="Critical alerts" value={criticalAlerts} tone="red" />
-        <StatCard icon={MapPinned} label="Zones" value={zones.length} tone="emerald" />
+        <StatCard icon={Users} label="Tourists tracked" value={tourists.length} tone="brand" />
+        <StatCard icon={TriangleAlert} label="Flagged tourists" value={flagged} tone="red" />
+        <StatCard icon={BellRing} label="Open incidents" value={openIncidents} tone="amber" />
+        <StatCard icon={Newspaper} label="Risk events" value={riskEvents.length} tone="slate" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -107,20 +116,40 @@ export default function Dashboard() {
           <ZoneMap
             geojson={geojson}
             incidents={incidents}
+            tourists={tourists}
             height={460}
             fit
             onIncidentClick={setSelectedId}
+            onTouristClick={setSelectedTouristId}
           />
           <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-            <Legend color="#10b981" label="Low" />
+            <Legend color="#10b981" label="Low/Safe" />
             <Legend color="#f59e0b" label="Moderate" />
-            <Legend color="#f97316" label="High" />
-            <Legend color="#ef4444" label="Restricted" />
+            <Legend color="#f97316" label="High/Alert" dot />
+            <Legend color="#ef4444" label="Restricted/Panic" dot />
             <Legend color="#dc2626" label="Incident" dot />
           </div>
         </Card>
 
         <div className="space-y-6">
+          <Card title="Active tourists">
+            <div className="space-y-2">
+              {tourists.length === 0 && <Empty>No tourists yet.</Empty>}
+              {tourists.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setSelectedTouristId(t.id)}
+                  className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left transition hover:bg-slate-50"
+                >
+                  <span className="truncate text-sm text-slate-700">
+                    {t.display_name || "Unnamed"}
+                    {t.zone_name ? <span className="text-slate-400"> · {t.zone_name}</span> : ""}
+                  </span>
+                  <Badge className={TOURIST_STATUS_STYLES[t.status]}>{t.status}</Badge>
+                </button>
+              ))}
+            </div>
+          </Card>
           <RiskLookup />
           <Card title="Zones">
             <div className="space-y-2">
@@ -199,12 +228,45 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      <Card title="Risk events (crime & hazards) — police only">
+        {riskEvents.length === 0 ? (
+          <Empty>No risk events. Run the Risk Intelligence agent to populate.</Empty>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {riskEvents.slice(0, 8).map((e) => (
+              <div key={e.id} className="rounded-lg border border-slate-100 p-3">
+                <div className="mb-1 flex items-center justify-between">
+                  <Badge className="bg-slate-100 text-slate-600 ring-slate-200">
+                    {titleCase(e.event_type)}
+                  </Badge>
+                  <span className="text-xs text-slate-400">
+                    {Math.round(e.confidence * 100)}% · {fmtTime(e.event_time)}
+                  </span>
+                </div>
+                <p className="text-sm font-medium text-slate-700">{e.title}</p>
+                {e.description && (
+                  <p className="mt-0.5 text-xs text-slate-500">{e.description}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <Drawer
         open={!!selectedId}
         onClose={() => setSelectedId(null)}
         title="Incident detail"
       >
         {selectedId && <IncidentDetail incidentId={selectedId} />}
+      </Drawer>
+
+      <Drawer
+        open={!!selectedTouristId}
+        onClose={() => setSelectedTouristId(null)}
+        title="Tourist detail"
+      >
+        {selectedTouristId && <TouristDetail touristId={selectedTouristId} />}
       </Drawer>
     </div>
   );

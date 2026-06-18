@@ -5,11 +5,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.deps import get_db, get_llm
-from app.db.enums import RiskCategory
-from app.db.models import Zone
+from app.db.enums import RiskCategory, UserRole
+from app.db.models import User, Zone
 from app.db.spatial import polygon_to_geom
 from app.main import app
 from app.services.llm import LLMClient
+from app.services.security import hash_password
 
 # Restricted zone far from seeded zones (isolation).
 ZLON, ZLAT = 78.40, 13.40
@@ -47,6 +48,16 @@ def _add_restricted_zone(db):
     db.flush()
 
 
+def _police_headers(client, db, email="apicop@example.com"):
+    """Create a police user and return an auth header (incidents/alerts are
+    police-only)."""
+    db.add(User(email=email, hashed_password=hash_password("copsecret"),
+                role=UserRole.POLICE))
+    db.flush()
+    tok = client.post("/auth/login", json={"email": email, "password": "copsecret"}).json()
+    return {"Authorization": f"Bearer {tok['access_token']}"}
+
+
 def test_register_and_get_tourist(client):
     tid = _register(client)
     resp = client.get(f"/tourists/{tid}")
@@ -81,7 +92,8 @@ def test_ingest_in_restricted_zone_creates_incident(client, db_session):
 
     # Now visible in the authorities' incident list + detail (with alert).
     inc_id = body["incident_id"]
-    detail = client.get(f"/incidents/{inc_id}").json()
+    headers = _police_headers(client, db_session)
+    detail = client.get(f"/incidents/{inc_id}", headers=headers).json()
     assert detail["incident_type"] == "geofence_breach"
     assert len(detail["alerts"]) == 1
 
@@ -138,7 +150,8 @@ def test_list_incidents_and_alerts(client, db_session):
     tid = _register(client)
     client.post(f"/tourists/{tid}/pings", json={"location": {"lat": ZLAT, "lon": ZLON}})
 
-    incidents = client.get("/incidents", params={"tourist_id": tid}).json()
+    headers = _police_headers(client, db_session)
+    incidents = client.get("/incidents", params={"tourist_id": tid}, headers=headers).json()
     assert len(incidents) >= 1
-    alerts = client.get("/alerts").json()
+    alerts = client.get("/alerts", headers=headers).json()
     assert len(alerts) >= 1

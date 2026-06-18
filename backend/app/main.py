@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import auth, health, incidents, locations, me, risk, tourists
+from app.api import auth, health, incidents, locations, me, police, risk, tourists
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 
@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(locations.router)
     app.include_router(risk.router)
     app.include_router(incidents.router)
+    app.include_router(police.router)
     return app
 
 

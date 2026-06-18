@@ -133,3 +133,50 @@ class TouristStatusResponse(BaseModel):
     status: str = "no_data"  # safe | warning | critical | no_data
     # Safety-only warnings (NO crime specifics — those are police-only).
     warnings: list[SignalOut] = []
+
+
+# --- Police schemas ---
+class ActiveTouristOut(BaseModel):
+    id: uuid.UUID
+    display_name: str | None
+    nationality: str | None
+    last_position: GeoPoint | None
+    last_seen: datetime | None
+    zone_name: str | None = None
+    area_risk_score: float | None = None
+    status: str  # safe | inactive | alert | panic | no_data
+    open_incidents: int = 0
+
+
+class TimelinePing(BaseModel):
+    lat: float
+    lon: float
+    recorded_at: datetime
+    source: str | None = None
+
+
+class TouristDetailOut(BaseModel):
+    id: uuid.UUID
+    display_name: str | None
+    nationality: str | None
+    emergency_contact: str | None
+    consent_given: bool
+    status: str
+    last_position: GeoPoint | None
+    zone_name: str | None = None
+    area_risk_score: float | None = None
+    recent_pings: list[TimelinePing] = []
+    incidents: list[IncidentOut] = []
+
+
+class RiskEventOut(BaseModel):
+    id: uuid.UUID
+    event_type: str
+    title: str
+    description: str | None
+    location: GeoPoint | None
+    zone_id: uuid.UUID | None
+    source: str
+    source_url: str | None
+    event_time: datetime
+    confidence: float

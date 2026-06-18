@@ -34,6 +34,22 @@ export const ZONE_COLORS = {
   restricted: "#ef4444",
 };
 
+// Tourist live-status → badge classes + map marker hex.
+export const TOURIST_STATUS_STYLES = {
+  safe: "bg-emerald-100 text-emerald-700 ring-emerald-200",
+  inactive: "bg-slate-100 text-slate-600 ring-slate-200",
+  alert: "bg-orange-100 text-orange-700 ring-orange-200",
+  panic: "bg-red-100 text-red-700 ring-red-200",
+  no_data: "bg-slate-100 text-slate-500 ring-slate-200",
+};
+export const TOURIST_STATUS_COLORS = {
+  safe: "#10b981",
+  inactive: "#94a3b8",
+  alert: "#f97316",
+  panic: "#ef4444",
+  no_data: "#cbd5e1",
+};
+
 export function fmtTime(iso) {
   if (!iso) return "—";
   const d = new Date(iso);

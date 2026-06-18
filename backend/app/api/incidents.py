@@ -8,13 +8,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_db, require_role
 from app.api.serializers import alert_out, incident_detail_out, incident_out
-from app.db.enums import IncidentStatus
+from app.db.enums import IncidentStatus, UserRole
 from app.db.models import Alert, Incident
 from app.schemas.api import AlertOut, IncidentDetailOut, IncidentOut
 
-router = APIRouter(tags=["incidents"])
+# Incidents and alerts are authority data — police only.
+router = APIRouter(tags=["incidents"], dependencies=[Depends(require_role(UserRole.POLICE))])
 
 
 @router.get("/incidents", response_model=list[IncidentOut])
