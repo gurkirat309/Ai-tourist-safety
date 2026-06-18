@@ -55,6 +55,12 @@ export const api = {
   ingestPing: (id, body) => request(`/tourists/${id}/pings`, { method: "POST", body }),
   panic: (id, body) => request(`/tourists/${id}/panic`, { method: "POST", body }),
 
+  // Tourist self-service (/me)
+  planTrip: (body) => request("/me/trip", { method: "POST", body }),
+  myStatus: () => request("/me/status"),
+  myPing: (body) => request("/me/pings", { method: "POST", body }),
+  myPanic: (body) => request("/me/panic", { method: "POST", body }),
+
   // Risk
   areaRisk: (lat, lon, when) => request("/risk/area", { params: { lat, lon, when } }),
   zones: () => request("/risk/zones"),

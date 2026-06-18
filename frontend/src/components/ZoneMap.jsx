@@ -5,10 +5,11 @@ import {
   TileLayer,
   GeoJSON,
   CircleMarker,
+  Polyline,
   Popup,
   useMap,
 } from "react-leaflet";
-import { ZONE_COLORS, titleCase, fmtTime } from "../lib/format";
+import { ZONE_COLORS, riskLevel, titleCase, fmtTime } from "../lib/format";
 
 const BENGALURU = [12.95, 77.62];
 
@@ -24,6 +25,15 @@ function FitToZones({ geojson }) {
       /* ignore */
     }
   }, [geojson, map]);
+  return null;
+}
+
+// Pan to follow a moving point (e.g. the tourist during a simulated trip).
+function Recenter({ center, follow }) {
+  const map = useMap();
+  useEffect(() => {
+    if (follow && center) map.panTo(center);
+  }, [center, follow, map]);
   return null;
 }
 
@@ -55,6 +65,10 @@ export default function ZoneMap({
   zoom = 12,
   fit = false,
   onIncidentClick,
+  route = null,
+  routeColor = "#2563eb",
+  safetyPoints = [],
+  follow = false,
 }) {
   return (
     <div style={{ height }}>
@@ -64,6 +78,32 @@ export default function ZoneMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {fit && <FitToZones geojson={geojson} />}
+        <Recenter center={center} follow={follow} />
+
+        {route && route.length >= 2 && (
+          <Polyline positions={route} pathOptions={{ color: routeColor, weight: 5, opacity: 0.75 }} />
+        )}
+
+        {safetyPoints
+          .filter((p) => p.score != null)
+          .map((p, i) => (
+            <CircleMarker
+              key={`sp-${i}`}
+              center={[p.lat, p.lon]}
+              radius={5}
+              pathOptions={{
+                color: riskLevel(p.score).color,
+                fillColor: riskLevel(p.score).color,
+                fillOpacity: 0.9,
+              }}
+            >
+              <Popup>
+                <div className="text-xs">
+                  Safety: {riskLevel(p.score).label} ({p.score.toFixed(2)})
+                </div>
+              </Popup>
+            </CircleMarker>
+          ))}
         {geojson && (
           <GeoJSON
             key={geojson.features?.length || 0}

@@ -1,126 +1,66 @@
-import { useEffect, useState } from "react";
-import { UserPlus, Navigation, Siren, LocateFixed, RotateCcw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Navigation,
+  Siren,
+  LocateFixed,
+  Route as RouteIcon,
+  Play,
+  Square,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
 import { api } from "../lib/api";
 import { SEVERITY_STYLES, riskLevel, titleCase } from "../lib/format";
-import { Card, Badge, Button, Field, Input, Spinner } from "../components/ui";
+import { Card, Badge, Button, Field, Input, Spinner, Empty } from "../components/ui";
 import ZoneMap from "../components/ZoneMap";
+import AssistantWidget from "../components/AssistantWidget";
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const STATUS_TONE = {
+  safe: "bg-emerald-100 text-emerald-700 ring-emerald-200",
+  warning: "bg-amber-100 text-amber-800 ring-amber-200",
+  critical: "bg-red-100 text-red-700 ring-red-200",
+  no_data: "bg-slate-100 text-slate-600 ring-slate-200",
+};
 
 export default function TouristPortal() {
-  const [tourist, setTourist] = useState(null);
   const [geojson, setGeojson] = useState(null);
-
-  useEffect(() => {
-    api.zonesGeojson().then(setGeojson).catch(() => {});
-  }, []);
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Tourist Portal</h1>
-        <p className="text-sm text-slate-500">
-          Register with consent, share your location, and raise a panic alert.
-        </p>
-      </div>
-
-      {!tourist ? (
-        <RegisterCard onRegistered={setTourist} />
-      ) : (
-        <ActiveTourist tourist={tourist} geojson={geojson} onReset={() => setTourist(null)} />
-      )}
-    </div>
-  );
-}
-
-function RegisterCard({ onRegistered }) {
-  const [form, setForm] = useState({
-    display_name: "",
-    nationality: "",
-    emergency_contact: "",
-    consent: true,
-  });
-  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(null);
+  const [trip, setTrip] = useState(null);
+  const [start, setStart] = useState({ lat: "12.9716", lon: "77.5946" }); // MG Road-ish
+  const [dest, setDest] = useState({ lat: "12.8000", lon: "77.5770" }); // Bannerghatta (restricted)
+  const [pos, setPos] = useState(null); // current marker {lat,lon}
+  const [busy, setBusy] = useState(null);
+  const [deviate, setDeviate] = useState(false);
+  const [simulating, setSimulating] = useState(false);
   const [err, setErr] = useState(null);
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const stopRef = useRef(false);
 
-  async function submit(e) {
-    e.preventDefault();
-    setBusy(true);
-    setErr(null);
+  async function loadStatus() {
     try {
-      const t = await api.registerTourist({
-        display_name: form.display_name || null,
-        nationality: form.nationality || null,
-        emergency_contact: form.emergency_contact || null,
-        consent: { consent_given: form.consent, consent_purpose: "safety_monitoring" },
-      });
-      onRegistered(t);
-    } catch (e2) {
-      setErr(e2.message);
-    } finally {
-      setBusy(false);
+      const s = await api.myStatus();
+      setStatus(s);
+      if (s.last_position) setPos(s.last_position);
+    } catch (e) {
+      setErr(e.message);
     }
   }
 
-  return (
-    <Card title="Register a tourist" className="max-w-xl">
-      <form onSubmit={submit} className="space-y-4">
-        <Field label="Name">
-          <Input value={form.display_name} onChange={set("display_name")} placeholder="Aarav Sharma" />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Nationality">
-            <Input value={form.nationality} onChange={set("nationality")} placeholder="IN" />
-          </Field>
-          <Field label="Emergency contact">
-            <Input value={form.emergency_contact} onChange={set("emergency_contact")} placeholder="+91-…" />
-          </Field>
-        </div>
-        <label className="flex items-start gap-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-          <input
-            type="checkbox"
-            checked={form.consent}
-            onChange={(e) => setForm({ ...form, consent: e.target.checked })}
-            className="mt-0.5 h-4 w-4 accent-brand-600"
-          />
-          <span>
-            I consent to processing my location for <b>safety monitoring</b> (DPDP).
-            Location data has a retention window and is minimized after expiry.
-          </span>
-        </label>
-        {err && <p className="text-sm text-red-600">{err}</p>}
-        <Button type="submit" disabled={busy}>
-          {busy ? <Spinner /> : <UserPlus size={16} />} Register
-        </Button>
-      </form>
-    </Card>
-  );
-}
+  useEffect(() => {
+    api.zonesGeojson().then(setGeojson).catch(() => {});
+    loadStatus();
+  }, []);
 
-function ActiveTourist({ tourist, geojson, onReset }) {
-  const [lat, setLat] = useState("12.8000");
-  const [lon, setLon] = useState("77.5770");
-  const [busy, setBusy] = useState(null);
-  const [result, setResult] = useState(null);
-  const [err, setErr] = useState(null);
-
-  function useMyLocation() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
-      setLat(pos.coords.latitude.toFixed(5));
-      setLon(pos.coords.longitude.toFixed(5));
-    });
-  }
-
-  async function act(kind) {
-    setBusy(kind);
+  async function planTrip() {
+    setBusy("plan");
     setErr(null);
     try {
-      const body = { location: { lat: Number(lat), lon: Number(lon) } };
-      const res =
-        kind === "panic"
-          ? await api.panic(tourist.id, body)
-          : await api.ingestPing(tourist.id, body);
-      setResult(res);
+      const t = await api.planTrip({
+        start: { lat: Number(start.lat), lon: Number(start.lon) },
+        destination: { lat: Number(dest.lat), lon: Number(dest.lon) },
+      });
+      setTrip(t);
+      setPos({ lat: Number(start.lat), lon: Number(start.lon) });
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -128,128 +68,230 @@ function ActiveTourist({ tourist, geojson, onReset }) {
     }
   }
 
-  const lvl = result ? riskLevel(result.area_risk_score) : null;
+  async function sendPing(lat, lon) {
+    await api.myPing({ location: { lat, lon } });
+    await loadStatus();
+  }
+
+  async function panic() {
+    setBusy("panic");
+    setErr(null);
+    try {
+      const p = pos || { lat: Number(start.lat), lon: Number(start.lon) };
+      await api.myPanic({ location: { lat: p.lat, lon: p.lon } });
+      await loadStatus();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function simulate() {
+    if (!trip?.route?.length) return;
+    setSimulating(true);
+    stopRef.current = false;
+    setErr(null);
+    // Sample ~10 points along the route for a snappy demo.
+    const pts = trip.route;
+    const step = Math.max(1, Math.floor(pts.length / 10));
+    const sampled = pts.filter((_, i) => i % step === 0);
+    try {
+      for (let i = 0; i < sampled.length; i++) {
+        if (stopRef.current) break;
+        let [lat, lon] = sampled[i];
+        if (deviate && i > sampled.length / 2) {
+          // Drift progressively north to trigger route-deviation.
+          lat += 0.0025 * (i - sampled.length / 2);
+        }
+        setPos({ lat, lon });
+        await sendPing(lat, lon);
+        await sleep(900);
+      }
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSimulating(false);
+    }
+  }
+
+  function useMyLocation() {
+    navigator.geolocation?.getCurrentPosition((p) =>
+      setStart({ lat: p.coords.latitude.toFixed(4), lon: p.coords.longitude.toFixed(4) })
+    );
+  }
+
+  const routeColor = trip ? riskLevel(trip.safety.max_score).color : "#2563eb";
 
   return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-      <div className="space-y-6">
-        <Card
-          title="Active tourist"
-          action={
-            <Button variant="ghost" onClick={onReset} className="!px-3 !py-1 text-xs">
-              <RotateCcw size={14} /> New
-            </Button>
-          }
-        >
-          <div className="text-sm text-slate-700">
-            <div className="font-semibold">{tourist.display_name || "Unnamed"}</div>
-            <div className="text-slate-500">
-              {tourist.nationality || "—"} · consent:{" "}
-              {tourist.consent_given ? (
-                <span className="text-emerald-600">given</span>
-              ) : (
-                <span className="text-red-600">none</span>
-              )}
-            </div>
-            <div className="mt-1 font-mono text-xs text-slate-400">{tourist.id}</div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <Field label="Latitude">
-              <Input value={lat} onChange={(e) => setLat(e.target.value)} />
-            </Field>
-            <Field label="Longitude">
-              <Input value={lon} onChange={(e) => setLon(e.target.value)} />
-            </Field>
-          </div>
-          <Button variant="ghost" onClick={useMyLocation} className="mt-2 w-full">
-            <LocateFixed size={16} /> Use my location
-          </Button>
-
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <Button onClick={() => act("ping")} disabled={busy}>
-              {busy === "ping" ? <Spinner /> : <Navigation size={16} />} Share location
-            </Button>
-            <Button variant="danger" onClick={() => act("panic")} disabled={busy}>
-              {busy === "panic" ? <Spinner /> : <Siren size={16} />} Panic
-            </Button>
-          </div>
-          {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
-        </Card>
-
-        {result && <ResultCard result={result} lvl={lvl} />}
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold text-slate-800">My Safety</h1>
+        <p className="text-sm text-slate-500">
+          Plan a route, see how safe it is, and share your location while you travel.
+        </p>
       </div>
 
-      <Card title="Your location & zones">
-        <ZoneMap
-          geojson={geojson}
-          marker={{ lat: Number(lat), lon: Number(lon), label: tourist.display_name }}
-          center={[Number(lat), Number(lon)]}
-          zoom={13}
-          height={520}
-        />
-      </Card>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        {/* Left controls */}
+        <div className="space-y-6">
+          <StatusCard status={status} />
+
+          <Card title="Plan a trip">
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Start lat"><Input value={start.lat} onChange={(e) => setStart({ ...start, lat: e.target.value })} /></Field>
+                <Field label="Start lon"><Input value={start.lon} onChange={(e) => setStart({ ...start, lon: e.target.value })} /></Field>
+              </div>
+              <Button variant="ghost" onClick={useMyLocation} className="w-full">
+                <LocateFixed size={16} /> Use my location as start
+              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Destination lat"><Input value={dest.lat} onChange={(e) => setDest({ ...dest, lat: e.target.value })} /></Field>
+                <Field label="Destination lon"><Input value={dest.lon} onChange={(e) => setDest({ ...dest, lon: e.target.value })} /></Field>
+              </div>
+              <Button onClick={planTrip} disabled={busy === "plan"} className="w-full">
+                {busy === "plan" ? <Spinner /> : <RouteIcon size={16} />} Plan route
+              </Button>
+
+              {trip && (
+                <div className="rounded-lg bg-slate-50 p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Route safety</span>
+                    <span className="font-semibold" style={{ color: routeColor }}>
+                      {trip.safety.label}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-400">
+                    {(trip.distance_m / 1000).toFixed(1)} km · ~{Math.round(trip.duration_s / 60)} min · {trip.source}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Card title="Travel">
+            <label className="mb-3 flex items-center gap-2 text-sm text-slate-600">
+              <input type="checkbox" checked={deviate} onChange={(e) => setDeviate(e.target.checked)}
+                     className="h-4 w-4 accent-brand-600" />
+              Simulate going off-route
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {!simulating ? (
+                <Button onClick={simulate} disabled={!trip} className="w-full">
+                  <Play size={16} /> Start trip
+                </Button>
+              ) : (
+                <Button variant="ghost" onClick={() => (stopRef.current = true)} className="w-full">
+                  <Square size={16} /> Stop
+                </Button>
+              )}
+              <Button variant="danger" onClick={panic} disabled={busy === "panic"} className="w-full">
+                {busy === "panic" ? <Spinner /> : <Siren size={16} />} Panic
+              </Button>
+            </div>
+            {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
+            <p className="mt-2 text-xs text-slate-400">
+              "Start trip" streams your location along the route so safety checks run live.
+            </p>
+          </Card>
+        </div>
+
+        {/* Map */}
+        <Card title="Map" className="xl:col-span-2">
+          <ZoneMap
+            geojson={geojson}
+            route={trip?.route}
+            routeColor={routeColor}
+            safetyPoints={trip?.safety?.points || []}
+            marker={pos}
+            center={pos ? [pos.lat, pos.lon] : undefined}
+            zoom={13}
+            follow={simulating}
+            height={560}
+          />
+          <p className="mt-2 text-xs text-slate-400">
+            Coloured dots show how safe each part of your route is (green = safe, red = risky).
+            You only see your safety level — not incident specifics.
+          </p>
+        </Card>
+      </div>
+
+      <AssistantWidget />
     </div>
   );
 }
 
-function ResultCard({ result, lvl }) {
+function StatusCard({ status }) {
+  if (!status) {
+    return (
+      <Card title="Current status">
+        <div className="flex justify-center py-4"><Spinner /></div>
+      </Card>
+    );
+  }
+  const tone = STATUS_TONE[status.status] || STATUS_TONE.no_data;
+  const lvl = riskLevel(status.area_risk_score);
   return (
-    <Card title="Latest assessment">
+    <Card title="Current status">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-slate-500">Zone</span>
-        <span className="text-sm font-medium text-slate-700">{result.zone_name || "—"}</span>
-      </div>
-
-      <div className="mt-3">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500">Area-risk score</span>
-          <span className="font-semibold" style={{ color: lvl.color }}>
-            {result.area_risk_score == null ? "n/a" : result.area_risk_score.toFixed(3)} · {lvl.label}
+        <div className="flex items-center gap-2">
+          {status.status === "safe" ? (
+            <ShieldCheck size={18} className="text-emerald-600" />
+          ) : (
+            <TriangleAlert size={18} className="text-amber-600" />
+          )}
+          <span className="text-sm font-medium text-slate-700">
+            {status.status === "no_data" ? "No location shared yet" : titleCase(status.status)}
           </span>
         </div>
-        <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-          <div
-            className="h-full rounded-full"
-            style={{
-              width: `${Math.min(100, (result.area_risk_score || 0) * 100)}%`,
-              backgroundColor: lvl.color,
-            }}
-          />
-        </div>
+        <Badge className={tone}>{status.status.replace("_", " ")}</Badge>
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
-        <span className="text-sm text-slate-500">Escalation</span>
-        {result.escalation ? (
-          <Badge className={SEVERITY_STYLES[result.escalation]}>{result.escalation}</Badge>
-        ) : (
-          <span className="text-sm text-emerald-600">all clear</span>
-        )}
-      </div>
-
-      {result.signals?.length > 0 && (
-        <div className="mt-4">
-          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
-            Detection signals
+      {status.status !== "no_data" && (
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500">Zone</span>
+            <span className="font-medium text-slate-700">{status.zone?.name || "—"}</span>
           </div>
-          <div className="space-y-2">
-            {result.signals.map((s, i) => (
-              <div key={i} className="flex items-start gap-2 text-sm">
-                <Badge className={SEVERITY_STYLES[s.severity] || SEVERITY_STYLES.info}>
-                  {s.severity}
-                </Badge>
-                <span className="text-slate-600">{s.reason}</span>
+          <div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500">Area safety</span>
+              <span className="font-semibold" style={{ color: lvl.color }}>{lvl.label}</span>
+            </div>
+            <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full"
+                   style={{ width: `${Math.min(100, (status.area_risk_score || 0) * 100)}%`, backgroundColor: lvl.color }} />
+            </div>
+          </div>
+          {status.on_route != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500">On planned route</span>
+              <span className={status.on_route ? "text-emerald-600" : "text-orange-600"}>
+                {status.on_route ? "yes" : `off by ${Math.round(status.deviation_m)} m`}
+              </span>
+            </div>
+          )}
+
+          <div>
+            <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+              Active warnings
+            </div>
+            {status.warnings.length === 0 ? (
+              <Empty>All clear</Empty>
+            ) : (
+              <div className="space-y-2">
+                {status.warnings.map((w, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm">
+                    <Badge className={SEVERITY_STYLES[w.severity] || SEVERITY_STYLES.info}>
+                      {w.severity}
+                    </Badge>
+                    <span className="text-slate-600">{w.reason}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
-
-      {result.incident_id && (
-        <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
-          {result.incident_created ? "Incident created" : "Incident updated"} ·{" "}
-          <span className="font-mono">{result.incident_id.slice(0, 8)}</span>
         </div>
       )}
     </Card>

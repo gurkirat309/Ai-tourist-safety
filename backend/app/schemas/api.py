@@ -91,3 +91,45 @@ class AlertOut(BaseModel):
 
 class IncidentDetailOut(IncidentOut):
     alerts: list[AlertOut] = []
+
+
+# --- Tourist /me schemas ---
+class TripRequest(BaseModel):
+    start: GeoPoint
+    destination: GeoPoint
+
+
+class RoutePointSafety(BaseModel):
+    lat: float
+    lon: float
+    score: float | None
+
+
+class RouteSafety(BaseModel):
+    overall_score: float | None
+    max_score: float | None
+    label: str
+    points: list[RoutePointSafety] = []
+
+
+class TripResponse(BaseModel):
+    route: list[tuple[float, float]]  # (lat, lon) pairs for the map
+    distance_m: float
+    duration_s: float
+    source: str
+    safety: RouteSafety
+
+
+class TouristStatusResponse(BaseModel):
+    tourist_id: uuid.UUID
+    display_name: str | None = None
+    has_route: bool = False
+    last_position: GeoPoint | None = None
+    last_seen: datetime | None = None
+    zone: ZoneRiskOut | None = None
+    area_risk_score: float | None = None
+    on_route: bool | None = None
+    deviation_m: float | None = None
+    status: str = "no_data"  # safe | warning | critical | no_data
+    # Safety-only warnings (NO crime specifics — those are police-only).
+    warnings: list[SignalOut] = []
