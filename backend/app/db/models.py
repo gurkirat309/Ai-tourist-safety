@@ -32,11 +32,32 @@ from app.db.enums import (
     IncidentType,
     RiskCategory,
     RiskEventType,
+    UserRole,
 )
 
 # Embedding dimension for risk-event vectors (small local sentence-transformer
 # models, e.g. all-MiniLM-L6-v2). Pinned here so the column type is stable.
 EMBEDDING_DIM = 384
+
+
+class User(Base, TimestampMixin):
+    """An authenticated account. Role drives access (tourist vs police).
+
+    Token verification is isolated in `app.services.security`, so this can be
+    swapped for an external provider (e.g. Clerk) without touching the model.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[UserRole] = mapped_column(default=UserRole.TOURIST, nullable=False)
+    # For tourist users, links to their Tourist profile.
+    tourist_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tourists.id", ondelete="SET NULL")
+    )
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
 
 
 class Tourist(Base, TimestampMixin):

@@ -6,6 +6,13 @@ Using str-based enums so values are human-readable in the DB and JSON.
 from enum import StrEnum
 
 
+class UserRole(StrEnum):
+    """Authentication role — drives what a logged-in user can see/do."""
+
+    TOURIST = "tourist"
+    POLICE = "police"
+
+
 class ConsentPurpose(StrEnum):
     """DPDP purpose for which a tourist's location is processed."""
 

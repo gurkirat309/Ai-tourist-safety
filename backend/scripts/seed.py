@@ -13,16 +13,18 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.db.enums import ConsentPurpose, RiskCategory, RiskEventType
+from app.db.enums import ConsentPurpose, RiskCategory, RiskEventType, UserRole
 from app.db.models import (
     Alert,
     Incident,
     LocationPing,
     RiskEvent,
     Tourist,
+    User,
     Zone,
 )
 from app.db.session import SessionLocal
@@ -31,6 +33,7 @@ from app.db.spatial import (
     point_to_geom,
     polygon_to_geom,
 )
+from app.services.security import hash_password
 from scripts.synthetic import Scenario, generate_trajectory
 
 log = get_logger(__name__)
@@ -68,10 +71,29 @@ def seed() -> None:
     db = SessionLocal()
     try:
         # --- clear domain tables (children first) ---
+        # Drop tourist-linked user accounts too (keep police accounts).
+        db.execute(delete(User).where(User.role == UserRole.TOURIST))
         for model in (Alert, Incident, RiskEvent, LocationPing, Tourist, Zone):
             db.execute(delete(model))
         db.commit()
         log.info("Cleared existing domain rows")
+
+        # --- police demo account (idempotent) ---
+        settings = get_settings()
+        police_email = settings.police_demo_email.lower()
+        existing = db.execute(
+            select(User).where(User.email == police_email)
+        ).scalars().first()
+        if existing is None:
+            db.add(User(
+                email=police_email,
+                hashed_password=hash_password(settings.police_demo_password),
+                role=UserRole.POLICE,
+            ))
+            db.commit()
+            log.info("Created police demo account: %s", police_email)
+        else:
+            log.info("Police demo account already exists: %s", police_email)
 
         # --- zones ---
         zones: dict[str, Zone] = {}

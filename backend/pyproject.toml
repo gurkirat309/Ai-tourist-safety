@@ -34,6 +34,9 @@ dependencies = [
     # Makes Python SSL use the OS trust store (needed behind TLS-intercepting
     # proxies so the LLM/RSS HTTPS calls trust the corporate root CA).
     "truststore>=0.9",
+    # Auth (JWT email+password; swappable for Clerk later)
+    "pyjwt>=2.9",
+    "bcrypt>=4.2",
     # Scheduling
     "apscheduler>=3.10",
 ]

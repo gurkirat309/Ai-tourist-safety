@@ -1,5 +1,14 @@
 // Thin fetch wrapper around the backend (proxied at /api in dev).
 const BASE = "/api";
+const TOKEN_KEY = "ts_token";
+
+export function setToken(token) {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+}
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
 
 async function request(path, { method = "GET", body, params } = {}) {
   let url = BASE + path;
@@ -9,22 +18,34 @@ async function request(path, { method = "GET", body, params } = {}) {
     ).toString();
     if (qs) url += `?${qs}`;
   }
+  const headers = {};
+  if (body) headers["Content-Type"] = "application/json";
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(url, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {
     const detail = data?.detail || res.statusText;
-    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    const err = new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+    err.status = res.status;
+    throw err;
   }
   return data;
 }
 
 export const api = {
   health: () => request("/health/ready"),
+
+  // Auth
+  signup: (payload) => request("/auth/signup", { method: "POST", body: payload }),
+  login: (payload) => request("/auth/login", { method: "POST", body: payload }),
+  me: () => request("/auth/me"),
 
   // Tourists
   registerTourist: (payload) => request("/tourists", { method: "POST", body: payload }),

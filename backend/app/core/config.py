@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     # ML — area-risk model artifact path (joblib bundle).
     risk_model_path: str = "models/area_risk_model.joblib"
 
+    # Auth (JWT). Override JWT_SECRET in production. Swappable for Clerk later.
+    jwt_secret: str = "dev-secret-change-me-in-production-please-0123456789"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 24  # 24h
+    # Seeded police demo account (created by scripts.seed).
+    police_demo_email: str = "police@bengaluru.gov.in"
+    police_demo_password: str = "police123"
+
     @property
     def database_url(self) -> str:
         """SQLAlchemy URL using the psycopg (v3) driver."""
