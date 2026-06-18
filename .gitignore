@@ -24,6 +24,7 @@ htmlcov/
 
 # ML artifacts
 *.joblib
+*.pt
 models/*.pkl
 data/raw/
 data/interim/

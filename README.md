@@ -88,7 +88,11 @@ make demo-detection     # the 4 deterministic detectors over seeded trajectories
 make demo-triage        # triage a seeded restricted-zone incident
 make demo-orchestrator  # stream a trajectory + panic through the orchestrator
 make risk-agent         # Risk Intelligence agent (dry-run; --live uses Groq)
-make test               # run the 68-test suite
+make test               # run the test suite
+
+# Optional: the LSTM trajectory-anomaly advisory model (PyTorch)
+uv pip install -e ".[lstm]" --torch-backend=cpu
+make train-lstm
 ```
 
 ### Notes

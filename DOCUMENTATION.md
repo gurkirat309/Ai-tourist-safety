@@ -197,7 +197,7 @@ flowchart TB
 | **truststore** | TLS behind corporate proxies | Routes Python TLS through the OS certificate store so live LLM/RSS calls work behind TLS-intercepting networks. |
 | **uv** | Python packaging / venv | Extremely fast, reproducible installs; single `pyproject.toml`. |
 | **Docker + docker-compose** | Local infra (Postgres+PostGIS+pgvector, Redis, app) | One command brings up the whole stack; reproducible across machines. |
-| **pytest** | Testing | The de-facto Python test framework; **68 tests** across the codebase. |
+| **pytest** | Testing | The de-facto Python test framework; **90 tests** across the codebase. |
 | **ruff** | Lint + format | Fast, all-in-one linter/formatter. |
 
 ### Frontend
@@ -420,7 +420,7 @@ Each returns a structured `DetectionSignal` (type, severity, reason,
 rule-derived confidence). **Done when:** all four fire correctly over the
 synthetic trajectories.
 
-### M3 — Area risk model (the only trained model)
+### M3 — Area risk model (the primary trained model)
 The Bengaluru priors + temporal patterns, a synthetic spatiotemporal dataset
 generator, feature engineering shared between training and serving, a
 `HistGradientBoostingClassifier`, and a `predict_risk(lat, lon, time) → 0..1`
@@ -632,7 +632,7 @@ npm run dev                                # http://127.0.0.1:8080
 
 ## 15. Testing
 
-**68 automated tests** (pytest), all passing, covering:
+**90 automated tests** (pytest), all passing, covering:
 
 | Area | What's tested |
 |---|---|
@@ -686,6 +686,40 @@ model_path }`), a `region` column on `zones`/`risk_events`, and **one trained
 model per city** selected by which city's bbox a point falls in. This is a
 contained refactor inside `app/ml/` and `app/agents/sources.py` plus a small
 migration — not a rewrite.
+
+---
+
+## 17b. Product layer (built after M0–M7): auth, roles, trip planning, police ops, LSTM
+
+The backend milestones (M0–M7) established the engine. On top of it the system
+now has a full two-role product:
+
+**Authentication & roles.** JWT email+password auth ([app/services/security.py](backend/app/services/security.py),
+[app/api/auth.py](backend/app/api/auth.py)); a `users` table with roles
+**tourist** / **police**. Tourists self-sign-up; a police account is seeded.
+Token verification is isolated in one module so it can be swapped for an
+external provider (e.g. Clerk) later. `require_role(...)` guards endpoints; the
+React app has role-based protected routing.
+
+**Tourist experience** ([app/api/me.py](backend/app/api/me.py)). The
+authenticated tourist plans a trip (real **OSRM** road route via
+[routing.py](backend/app/services/routing.py), straight-line fallback), gets a
+**safety score sampled along the route**, streams location (trip simulation in
+the demo), and sees live status from the four engines — **safety information
+only, never crime specifics**. A panic button and an AI-assistant placeholder
+are present.
+
+**Police experience** ([app/api/police.py](backend/app/api/police.py)). Police
+see **all tourists** with live position + status, per-tourist activity, and the
+**full crime/risk-event feed**. Incidents and alerts are role-restricted.
+
+**Second trained model — LSTM trajectory anomaly** ([app/ml/lstm/](backend/app/ml/lstm/)).
+A PyTorch LSTM flags anomalous movement patterns from a trajectory's shape
+alone (accuracy ~0.92, ROC-AUC ~0.97 on synthetic data). It's an **optional,
+advisory** signal wired into the orchestrator: it adds a `ml.trajectory_lstm`
+warning but never replaces the deterministic route-deviation floor, and is
+silently skipped if torch/the model artifact is absent. So the system now has
+**two trained models** (area-risk gradient-boosting + the LSTM).
 
 ---
 

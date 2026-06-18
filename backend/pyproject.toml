@@ -47,6 +47,11 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.7",
 ]
+# Optional: the LSTM trajectory-anomaly advisory model (Phase 4). Heavy (PyTorch
+# CPU). Install with: uv pip install -e ".[lstm]" --torch-backend=cpu
+lstm = [
+    "torch>=2.2",
+]
 
 [build-system]
 requires = ["hatchling"]

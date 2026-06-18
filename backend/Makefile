@@ -1,7 +1,7 @@
 # Convenience targets. On Windows, run these via Git Bash, or use the raw
 # commands shown in the README if `make` is unavailable.
 
-.PHONY: help install infra-up infra-down stack-up stack-down dev test lint fmt migrate seed train demo-detection risk-agent demo-triage demo-orchestrator
+.PHONY: help install infra-up infra-down stack-up stack-down dev test lint fmt migrate seed train train-lstm demo-detection risk-agent demo-triage demo-orchestrator
 
 help:
 	@echo "install     - create venv and install deps (uv)"
@@ -16,6 +16,7 @@ help:
 	@echo "migrate     - apply Alembic migrations"
 	@echo "seed        - load synthetic data (M1)"
 	@echo "train       - train + export the area-risk model (M3)"
+	@echo "train-lstm  - train the LSTM trajectory-anomaly model (needs .[lstm])"
 	@echo "demo-detection - run detectors over seeded data (M2)"
 	@echo "risk-agent  - run Risk Intelligence agent once, dry-run (M4)"
 	@echo "demo-triage - triage an incident from seeded data (M5)"
@@ -57,6 +58,9 @@ seed:
 
 train:
 	uv run python -m scripts.train_risk_model
+
+train-lstm:
+	uv run python -m scripts.train_lstm
 
 demo-detection:
 	uv run python -m scripts.demo_detection

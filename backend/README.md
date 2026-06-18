@@ -218,6 +218,29 @@ request never blocks on a live LLM; the live LLM is reserved for the scheduled
 Risk Intelligence agent (M4). Location ingest is refused (403) without consent
 (DPDP).
 
+## LSTM trajectory-anomaly model (advisory)
+
+An **optional** PyTorch LSTM that flags anomalous *movement patterns* from the
+shape of a tourist's recent trajectory alone — complementing (never replacing)
+the deterministic route-deviation detector. It is an **advisory** signal: if
+torch or the model artifact is absent, it's silently skipped and the
+deterministic detectors remain the safety floor.
+
+- Features ([app/ml/lstm/features.py](app/ml/lstm/features.py)) — per-step
+  distance, speed, turn angle, time gap over a sliding window (pure numpy).
+- Model ([app/ml/lstm/model.py](app/ml/lstm/model.py)) — small LSTM classifier;
+  trained on synthetic normal vs deviating trajectories.
+- Wired into the orchestrator: a high anomaly probability adds a
+  `ml.trajectory_lstm` warning signal.
+
+```bash
+uv pip install -e ".[lstm]" --torch-backend=cpu   # one-time (PyTorch CPU)
+uv run python -m scripts.train_lstm               # or: make train-lstm
+```
+
+Trained metrics (synthetic): **accuracy ~0.92, ROC-AUC ~0.97**; a clean route
+scores ~0.00 and a deviating one ~0.99.
+
 ## Full stack in Docker (Definition of Done)
 
 The app container applies migrations on startup, then serves the API.

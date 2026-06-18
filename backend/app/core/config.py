@@ -49,6 +49,9 @@ class Settings(BaseSettings):
 
     # ML — area-risk model artifact path (joblib bundle).
     risk_model_path: str = "models/area_risk_model.joblib"
+    # ML — optional LSTM trajectory-anomaly model (advisory). Off if file/torch absent.
+    lstm_model_path: str = "models/trajectory_lstm.pt"
+    lstm_anomaly_threshold: float = 0.6
 
     # Auth (JWT). Override JWT_SECRET in production. Swappable for Clerk later.
     jwt_secret: str = "dev-secret-change-me-in-production-please-0123456789"
