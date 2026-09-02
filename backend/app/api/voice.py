@@ -140,7 +140,7 @@ def voice_greeting(
             if zone:
                 location_desc = f"{zone.name} ({zone.risk_category} risk area)"
             elif latlon:
-                location_desc = f"coordinates {latlon.lat:.3f}, {latlon.lon:.3f}"
+                location_desc = f"coordinates {latlon[0]:.3f}, {latlon[1]:.3f}"
 
     voice_service = TwilioVoiceService()
     twiml = voice_service.build_greeting_twiml(
@@ -191,14 +191,16 @@ def voice_respond(
             if zone:
                 location_desc = f"{zone.name} ({zone.risk_category} risk zone)"
             elif latlon:
-                location_desc = f"coordinates {latlon.lat:.3f}, {latlon.lon:.3f}"
+                location_desc = f"coordinates {latlon[0]:.3f}, {latlon[1]:.3f}"
 
     # Generate response via LLM
     llm = LLMClient()
     system_prompt = (
         "You are an emergency crisis response AI voice assistant for tourists in Bengaluru, India. "
-        "Keep your response concise, calm, and reassuring (maximum 2-3 sentences) because it is being read aloud over a phone call. "
-        "Provide direct safety guidance or tell them where to move. "
+        "The tourist is likely nervous or frightened. First acknowledge their feeling in one short phrase to calm them, "
+        "then give one or two concrete, reassuring safety steps or tell them where to move. "
+        "Keep your response concise and warm (maximum 2-3 sentences) because it is being read aloud over a phone call. "
+        "Use only plain ASCII characters: no accented letters, special hyphens, or emojis, so the text-to-speech reads cleanly. "
         "Return STRICT JSON with keys 'reply' (the text to speak aloud) and 'is_resolved' (boolean, true if tourist says they are safe, fine, or want to hang up)."
     )
     user_prompt = (

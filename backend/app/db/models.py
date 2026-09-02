@@ -21,6 +21,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, uuid_pk
@@ -195,7 +196,9 @@ class Incident(Base, TimestampMixin):
         DateTime(timezone=True), nullable=False
     )
     # Free-form detector context (thresholds breached, distances, etc.).
-    details: Mapped[dict | None] = mapped_column(JSONB)
+    # MutableDict so in-place edits (e.g. appending to the voice transcript) are
+    # tracked by SQLAlchemy and actually persisted on commit.
+    details: Mapped[dict | None] = mapped_column(MutableDict.as_mutable(JSONB))
 
     tourist: Mapped["Tourist"] = relationship(back_populates="incidents")
     alerts: Mapped[list["Alert"]] = relationship(
