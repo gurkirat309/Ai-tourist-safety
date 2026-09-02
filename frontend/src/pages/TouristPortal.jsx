@@ -6,6 +6,7 @@ import {
   Square,
   ShieldCheck,
   TriangleAlert,
+  PhoneCall,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { SEVERITY_STYLES, riskLevel, titleCase } from "../lib/format";
@@ -33,6 +34,8 @@ export default function TouristPortal() {
   const [busy, setBusy] = useState(null);
   const [deviate, setDeviate] = useState(false);
   const [simulating, setSimulating] = useState(false);
+  const [phone, setPhone] = useState(() => localStorage.getItem("ts_phone") || "");
+  const [callMsg, setCallMsg] = useState(null);
   const [err, setErr] = useState(null);
   const stopRef = useRef(false);
 
@@ -91,6 +94,26 @@ export default function TouristPortal() {
       await loadStatus();
     } catch (e) {
       setErr(e.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function callAI() {
+    if (!phone || phone.trim().length < 8) {
+      setErr("Please enter a valid phone number (e.g. +91 9876543210) to receive the AI call.");
+      return;
+    }
+    setBusy("call");
+    setErr(null);
+    setCallMsg(null);
+    try {
+      localStorage.setItem("ts_phone", phone.trim());
+      const res = await api.requestVoiceCall({ phone_number: phone.trim() });
+      setCallMsg(`Dialing ${res.phone}... Pick up your phone when it rings!`);
+      await loadStatus();
+    } catch (e) {
+      setErr(e.message || "Failed to initiate AI call.");
     } finally {
       setBusy(null);
     }
@@ -222,6 +245,37 @@ export default function TouristPortal() {
                 {busy === "panic" ? <Spinner /> : <Siren size={16} />} Panic
               </Button>
             </div>
+
+            {/* AI Voice Call Section */}
+            <div className="mt-4 pt-3 border-t border-slate-200">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  AI Emergency Call
+                </label>
+                <span className="text-xs text-emerald-600 font-medium">Two-Way Voice</span>
+              </div>
+              <input
+                type="tel"
+                placeholder="Enter verified phone (e.g. +91...)"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full mb-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
+              />
+              <Button
+                onClick={callAI}
+                disabled={busy === "call"}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-colors"
+              >
+                {busy === "call" ? <Spinner /> : <PhoneCall size={16} />} Call AI Safety Assistant
+              </Button>
+              {callMsg && (
+                <div className="mt-2 p-2 bg-emerald-50 border border-emerald-300 rounded text-xs text-emerald-800 flex items-center gap-1.5 animate-pulse">
+                  <span>📞</span>
+                  <span>{callMsg}</span>
+                </div>
+              )}
+            </div>
+
             {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
             <p className="mt-2 text-xs text-slate-400">
               "Start trip" streams your location along the route so safety checks run live.

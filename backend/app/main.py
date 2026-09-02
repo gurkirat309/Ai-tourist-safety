@@ -15,6 +15,7 @@ from app.api import (
     police,
     risk,
     tourists,
+    voice,
 )
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
@@ -51,6 +52,8 @@ def create_app() -> FastAPI:
     app.include_router(risk.router)
     app.include_router(incidents.router)
     app.include_router(police.router)
+    app.include_router(voice.router)
+    app.include_router(voice.router, prefix="/api")
     return app
 
 

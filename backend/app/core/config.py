@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     police_demo_email: str = "police@bengaluru.gov.in"
     police_demo_password: str = "police123"
 
+    # Twilio Voice & AI Call
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_from_phone: str = ""
+    twilio_webhook_base_url: str = ""
+    twilio_dry_run: bool = False
+
     @property
     def database_url(self) -> str:
         """SQLAlchemy URL using the psycopg (v3) driver."""

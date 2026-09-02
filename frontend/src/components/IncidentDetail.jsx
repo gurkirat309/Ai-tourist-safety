@@ -111,6 +111,51 @@ export default function IncidentDetail({ incidentId }) {
           </div>
         )}
       </div>
+
+      {/* Voice Call Details & Transcript */}
+      {data.details?.trigger === "ai_voice_call" && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+              <span>📞</span> AI Emergency Voice Call
+            </span>
+            <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-medium">
+              {data.details?.call_final_status || "Dispatched / Active"}
+            </span>
+          </div>
+          <div className="text-xs text-slate-600 mb-2 space-y-0.5">
+            <div>Phone: <span className="font-semibold">{data.details?.phone_called}</span></div>
+            {data.details?.call_duration_seconds && (
+              <div>Duration: <span className="font-semibold">{data.details?.call_duration_seconds}s</span></div>
+            )}
+          </div>
+
+          <div className="mt-2">
+            <div className="text-xs font-semibold text-slate-500 mb-1">Call Transcript:</div>
+            {(!data.details?.transcript || data.details.transcript.length === 0) ? (
+              <p className="text-xs italic text-slate-400">Call initiated, waiting for speech input...</p>
+            ) : (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {data.details.transcript.map((t, i) => (
+                  <div
+                    key={i}
+                    className={`p-2 rounded text-xs ${
+                      t.speaker === "tourist"
+                        ? "bg-white border border-slate-200 text-slate-800"
+                        : "bg-emerald-100/80 border border-emerald-300 text-emerald-950 font-medium"
+                    }`}
+                  >
+                    <div className="font-bold text-[10px] uppercase tracking-wide opacity-70 mb-0.5">
+                      {t.speaker === "tourist" ? "Tourist (Spoken)" : "Safety AI Assistant"}
+                    </div>
+                    <div>{t.text}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
