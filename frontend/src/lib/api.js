@@ -64,6 +64,7 @@ export const api = {
   myStatus: () => request("/me/status"),
   myPing: (body) => request("/me/pings", { method: "POST", body }),
   myPanic: (body) => request("/me/panic", { method: "POST", body }),
+  requestVoiceCall: (body) => request("/voice/call-me", { method: "POST", body }),
 
   // Risk
   areaRisk: (lat, lon, when) => request("/risk/area", { params: { lat, lon, when } }),

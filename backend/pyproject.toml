@@ -39,6 +39,9 @@ dependencies = [
     "bcrypt>=4.2",
     # Scheduling
     "apscheduler>=3.10",
+    # Voice & Telephony
+    "twilio>=9.0.0",
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
