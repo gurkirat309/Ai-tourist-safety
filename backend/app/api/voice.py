@@ -96,7 +96,8 @@ def request_voice_call(
         )
     except Exception as e:
         log.exception("Twilio call initiation failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Failed to place phone call: {e}")
+        clean_err = getattr(e, "msg", str(e))
+        raise HTTPException(status_code=502, detail=f"Twilio Call Error: {clean_err}")
 
     # Store call SID in incident details
     incident.details["call_sid"] = call_info.get("call_sid")
