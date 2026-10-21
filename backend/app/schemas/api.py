@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -97,6 +97,10 @@ class IncidentDetailOut(IncidentOut):
 class TripRequest(BaseModel):
     start: GeoPoint
     destination: GeoPoint
+    # Which alternative to adopt as the planned route. "safest" is the default
+    # because that is the point of the product; the tourist can still ask for
+    # "fastest" after seeing the trade-off.
+    prefer: Literal["safest", "fastest"] = "safest"
 
 
 class RoutePointSafety(BaseModel):
@@ -112,12 +116,37 @@ class RouteSafety(BaseModel):
     points: list[RoutePointSafety] = []
 
 
-class TripResponse(BaseModel):
+class RouteOption(BaseModel):
+    """One candidate route, scored for safety.
+
+    `index` is stable within a single response and is what the UI labels.
+    """
+
+    index: int
     route: list[tuple[float, float]]  # (lat, lon) pairs for the map
     distance_m: float
     duration_s: float
     source: str
     safety: RouteSafety
+    is_fastest: bool = False
+    is_safest: bool = False
+    # Set on the option actually adopted as the planned route.
+    is_selected: bool = False
+
+
+class TripResponse(BaseModel):
+    # The selected route stays at the top level so existing callers keep
+    # working unchanged; `alternatives` is additive.
+    route: list[tuple[float, float]]  # (lat, lon) pairs for the map
+    distance_m: float
+    duration_s: float
+    source: str
+    safety: RouteSafety
+    alternatives: list[RouteOption] = []
+    # Which preference produced the selection ("safest" | "fastest").
+    chosen: str = "safest"
+    # Human-readable note on the trade-off, e.g. "6 min slower, 38% safer".
+    trade_off: str | None = None
 
 
 class TouristStatusResponse(BaseModel):
@@ -133,6 +162,50 @@ class TouristStatusResponse(BaseModel):
     status: str = "no_data"  # safe | warning | critical | no_data
     # Safety-only warnings (NO crime specifics — those are police-only).
     warnings: list[SignalOut] = []
+
+
+class RiskForecastPoint(BaseModel):
+    when: datetime
+    risk_score: float | None
+    label: str
+
+
+class RiskForecastResponse(BaseModel):
+    """Area risk over the next N hours for one location.
+
+    The trained model already takes time-of-day and day-of-week as features,
+    so this is the same model asked about the future rather than now. It lets
+    a tourist answer "is it safe to come back here tonight?".
+    """
+
+    location: GeoPoint
+    points: list[RiskForecastPoint] = []
+    model_available: bool = False
+    safest: RiskForecastPoint | None = None
+    riskiest: RiskForecastPoint | None = None
+
+
+class AdvisoryOut(BaseModel):
+    """A risk event, sanitized for tourist eyes.
+
+    Deliberately omits the event title, description and source URL. Tourists
+    get awareness ("civil unrest reported near Majestic in the last 6h") and
+    never the underlying crime specifics, which stay police-only.
+    """
+
+    event_type: str
+    advice: str
+    area: str | None = None
+    # Coarse location (~100 m) so it can be mapped without pinpointing anyone.
+    location: GeoPoint | None = None
+    event_time: datetime
+    confidence: float
+
+
+class AdvisoriesResponse(BaseModel):
+    advisories: list[AdvisoryOut] = []
+    radius_m: int
+    since_hours: int
 
 
 # --- Police schemas ---

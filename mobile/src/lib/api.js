@@ -116,6 +116,8 @@ export const api = {
   // Warm that is ~1s, but the first call after a backend restart also loads
   // the model from disk, so this needs far more headroom than a normal call.
   planTrip: (body) => request("/me/trip", { method: "POST", body, timeout: 45000 }),
+  // Recent risk events near the tourist, sanitized (no crime specifics).
+  advisories: (params) => request("/me/advisories", { params }),
 
   // Live safety
   myStatus: () => request("/me/status"),
@@ -127,4 +129,7 @@ export const api = {
   // Map data
   zonesGeojson: () => request("/risk/zones.geojson"),
   areaRisk: (lat, lon, when) => request("/risk/area", { params: { lat, lon, when } }),
+  // Hour-by-hour risk for a place: "safe now, but what about tonight?"
+  forecast: (lat, lon, hours = 24) =>
+    request("/risk/forecast", { params: { lat, lon, hours }, timeout: 30000 }),
 };

@@ -13,13 +13,20 @@ from app.services.routing import Route
 def client(db_session, monkeypatch):
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_realtime_llm] = lambda: LLMClient(dry_run=True)
-    # Avoid network in tests: stub the router with a deterministic straight line.
+    # Avoid network in tests: stub the router with two deterministic routes —
+    # a direct one and a longer detour — so alternative-scoring is exercised.
     monkeypatch.setattr(
-        "app.api.me.compute_route",
-        lambda slat, slon, dlat, dlon: Route(
-            coords=[(slon, slat), (dlon, dlat)],
-            distance_m=1000.0, duration_s=700.0, source="straightline",
-        ),
+        "app.api.me.compute_routes",
+        lambda slat, slon, dlat, dlon, **kw: [
+            Route(
+                coords=[(slon, slat), (dlon, dlat)],
+                distance_m=1000.0, duration_s=700.0, source="straightline",
+            ),
+            Route(
+                coords=[(slon, slat), (slon + 0.01, slat + 0.01), (dlon, dlat)],
+                distance_m=1600.0, duration_s=1100.0, source="straightline",
+            ),
+        ],
     )
     with TestClient(app) as c:
         yield c
@@ -121,3 +128,121 @@ def test_demo_ping_is_recorded_as_demo(client, db_session):
         .one()
     )
     assert ping.source == "demo"
+
+
+# --- Tier 1: route alternatives --------------------------------------------
+
+
+def test_trip_returns_scored_alternatives(client):
+    """Every candidate route comes back scored, with one marked fastest."""
+    h = _auth(client, email="alts@example.com")
+    r = client.post("/me/trip", headers=h, json={
+        "start": {"lat": 12.97, "lon": 77.59},
+        "destination": {"lat": 12.95, "lon": 77.60},
+    })
+    assert r.status_code == 200
+    d = r.json()
+
+    assert len(d["alternatives"]) == 2
+    assert [a["index"] for a in d["alternatives"]] == [0, 1]
+    # Exactly one fastest, one safest, one selected.
+    assert sum(a["is_fastest"] for a in d["alternatives"]) == 1
+    assert sum(a["is_safest"] for a in d["alternatives"]) == 1
+    assert sum(a["is_selected"] for a in d["alternatives"]) == 1
+    # The shorter route is the fastest one.
+    fastest = next(a for a in d["alternatives"] if a["is_fastest"])
+    assert fastest["duration_s"] == 700.0
+
+
+def test_trip_prefer_fastest_selects_fastest(client):
+    """`prefer=fastest` adopts the quickest route even if it scores worse."""
+    h = _auth(client, email="fastest@example.com")
+    r = client.post("/me/trip", headers=h, json={
+        "start": {"lat": 12.97, "lon": 77.59},
+        "destination": {"lat": 12.95, "lon": 77.60},
+        "prefer": "fastest",
+    })
+    assert r.status_code == 200
+    d = r.json()
+    assert d["chosen"] == "fastest"
+    assert d["duration_s"] == 700.0
+    selected = next(a for a in d["alternatives"] if a["is_selected"])
+    assert selected["is_fastest"] is True
+    # No trade-off note when the fastest route is the one taken.
+    assert d["trade_off"] is None
+
+
+def test_trip_defaults_to_safest(client):
+    """Safety is the default preference, not speed."""
+    h = _auth(client, email="safest@example.com")
+    r = client.post("/me/trip", headers=h, json={
+        "start": {"lat": 12.97, "lon": 77.59},
+        "destination": {"lat": 12.95, "lon": 77.60},
+    })
+    d = r.json()
+    assert d["chosen"] == "safest"
+    selected = next(a for a in d["alternatives"] if a["is_selected"])
+    assert selected["is_safest"] is True
+
+
+def test_trip_top_level_matches_selected(client):
+    """The legacy top-level fields mirror the selected route (back-compat)."""
+    h = _auth(client, email="backcompat@example.com")
+    r = client.post("/me/trip", headers=h, json={
+        "start": {"lat": 12.97, "lon": 77.59},
+        "destination": {"lat": 12.95, "lon": 77.60},
+    })
+    d = r.json()
+    selected = next(a for a in d["alternatives"] if a["is_selected"])
+    assert d["route"] == selected["route"]
+    assert d["distance_m"] == selected["distance_m"]
+    assert d["duration_s"] == selected["duration_s"]
+    assert d["safety"] == selected["safety"]
+
+
+# --- Tier 1: advisories -----------------------------------------------------
+
+
+def test_advisories_empty_without_position(client):
+    """A tourist with no pings has nothing to be 'near'."""
+    h = _auth(client, email="noadv@example.com")
+    r = client.get("/me/advisories", headers=h)
+    assert r.status_code == 200
+    assert r.json()["advisories"] == []
+
+
+def test_advisories_are_sanitized(client, db_session):
+    """Advisories carry no title, description or source URL."""
+    from datetime import UTC, datetime
+
+    from app.db.enums import RiskEventType
+    from app.db.models import RiskEvent
+    from app.db.spatial import point_to_geom
+
+    h = _auth(client, email="adv@example.com")
+    # Give the tourist a position.
+    client.post("/me/pings", headers=h, json={"location": {"lat": 12.97, "lon": 77.59}})
+
+    db_session.add(RiskEvent(
+        event_type=RiskEventType.CIVIL_UNREST,
+        title="Protest turns violent, three injured",
+        description="Graphic details that a tourist must never be shown.",
+        source="news.example", source_url="https://news.example/story",
+        event_time=datetime.now(UTC), confidence=0.8,
+        geom=point_to_geom(12.9705, 77.5905),
+    ))
+    db_session.flush()
+
+    body = client.get("/me/advisories", headers=h).json()
+    assert len(body["advisories"]) >= 1
+    adv = body["advisories"][0]
+
+    assert adv["event_type"] == "civil_unrest"
+    assert "avoiding the area" in adv["advice"]
+    # The sensitive fields must not appear anywhere in the payload.
+    blob = str(body)
+    assert "violent" not in blob
+    assert "Graphic details" not in blob
+    assert "news.example" not in blob
+    # Location is blurred to ~100 m.
+    assert adv["location"]["lat"] == round(12.9705, 3)

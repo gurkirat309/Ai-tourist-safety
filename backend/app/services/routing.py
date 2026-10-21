@@ -39,14 +39,34 @@ def _straight_line(
     )
 
 
-def compute_route(
-    start_lat: float, start_lon: float, dest_lat: float, dest_lon: float
-) -> Route:
-    """Real road route via OSRM; falls back to a straight line on any failure."""
+def compute_routes(
+    start_lat: float,
+    start_lon: float,
+    dest_lat: float,
+    dest_lon: float,
+    *,
+    alternatives: int = 3,
+) -> list[Route]:
+    """Up to `alternatives` distinct road routes via OSRM, fastest first.
+
+    Asking for alternatives is what makes a *safer* route possible: with only
+    one candidate there is nothing to compare. OSRM may still return a single
+    route when no genuine alternative exists, so callers must handle a
+    one-element list.
+
+    Always returns at least one route — a straight line if OSRM is
+    unreachable — so trip planning never hard-fails.
+    """
     start = (start_lon, start_lat)
     dest = (dest_lon, dest_lat)
     url = f"{OSRM_URL}/{start_lon},{start_lat};{dest_lon},{dest_lat}"
-    params = {"overview": "full", "geometries": "geojson"}
+    params = {
+        "overview": "full",
+        "geometries": "geojson",
+        # OSRM accepts a count; it returns fewer when none are meaningfully
+        # different.
+        "alternatives": str(max(1, alternatives)),
+    }
     try:
         import httpx
 
@@ -58,14 +78,32 @@ def compute_route(
         data = resp.json()
         if data.get("code") != "Ok" or not data.get("routes"):
             raise ValueError(f"OSRM code={data.get('code')}")
-        route = data["routes"][0]
-        coords = [(c[0], c[1]) for c in route["geometry"]["coordinates"]]
-        return Route(
-            coords=coords,
-            distance_m=float(route["distance"]),
-            duration_s=float(route["duration"]),
-            source="osrm",
-        )
+
+        routes: list[Route] = []
+        for route in data["routes"][:alternatives]:
+            coords = [(c[0], c[1]) for c in route["geometry"]["coordinates"]]
+            if not coords:
+                continue
+            routes.append(
+                Route(
+                    coords=coords,
+                    distance_m=float(route["distance"]),
+                    duration_s=float(route["duration"]),
+                    source="osrm",
+                )
+            )
+        if not routes:
+            raise ValueError("OSRM returned no usable geometry")
+        return routes
     except Exception as exc:  # noqa: BLE001
         log.info("OSRM unavailable (%s); using straight-line route", exc)
-        return _straight_line(start, dest)
+        return [_straight_line(start, dest)]
+
+
+def compute_route(
+    start_lat: float, start_lon: float, dest_lat: float, dest_lon: float
+) -> Route:
+    """The single fastest road route (thin wrapper over `compute_routes`)."""
+    return compute_routes(
+        start_lat, start_lon, dest_lat, dest_lon, alternatives=1
+    )[0]

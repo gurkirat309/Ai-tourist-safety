@@ -36,6 +36,7 @@ from app.detection.adapters import (
     load_zone_infos,
     previous_ping,
     tourist_route,
+    trajectory_anomaly_signal,
 )
 from app.detection.crowd import check_zone_crowd
 from app.detection.geofence import check_geofence
@@ -143,7 +144,7 @@ class SafetyOrchestrator:
 
         # Advisory ML: LSTM trajectory-anomaly signal. No-op if torch/model
         # absent; complements (never replaces) the deterministic detectors.
-        lstm_sig = self._lstm_signal(tourist_id, when)
+        lstm_sig = trajectory_anomaly_signal(self.db, tourist_id)
         if lstm_sig:
             signals.append(lstm_sig)
 
@@ -235,41 +236,6 @@ class SafetyOrchestrator:
         return result
 
     # --- helpers ----------------------------------------------------------
-    def _lstm_signal(self, tourist_id, when) -> DetectionSignal | None:
-        """Advisory anomaly signal from the LSTM over the tourist's recent path."""
-        try:
-            from app.ml.lstm.features import WINDOW
-            from app.ml.lstm.infer import score_trajectory
-        except Exception:  # noqa: BLE001
-            return None
-        pings = self.db.execute(
-            select(LocationPing)
-            .where(LocationPing.tourist_id == tourist_id)
-            .order_by(LocationPing.recorded_at.desc())
-            .limit(WINDOW + 1)
-        ).scalars().all()
-        if len(pings) < 3:
-            return None
-        points = [
-            (*geom_to_latlon(p.geom), p.recorded_at.timestamp())
-            for p in reversed(pings)
-        ]
-        prob = score_trajectory(points)
-        if prob is None:
-            return None
-        from app.core.config import get_settings
-
-        if prob < get_settings().lstm_anomaly_threshold:
-            return None
-        return DetectionSignal(
-            type=IncidentType.ROUTE_DEVIATION,
-            severity=Severity.WARNING,
-            reason=f"Anomalous movement pattern (LSTM p={prob:.2f})",
-            confidence=prob,
-            details={"anomaly_prob": round(prob, 3)},
-            source="ml.trajectory_lstm",
-        )
-
     def _area_risk(self, lat: float, lon: float, when: datetime) -> float | None:
         try:
             from app.ml.risk_model import predict_risk

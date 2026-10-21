@@ -101,3 +101,43 @@ def test_predict_night_gt_day_high_zone(trained_bundle):
     night = _mean_risk(trained_bundle, *MAJESTIC, [21, 22, 23, 0], range(7))
     day = _mean_risk(trained_bundle, *MAJESTIC, [9, 10, 11, 12], range(7))
     assert night > day
+
+
+# --- Tier 1: time-of-day risk forecast -------------------------------------
+
+
+def test_forecast_returns_one_point_per_hour():
+    from app.api.risk import risk_forecast
+
+    r = risk_forecast(lat=12.9763, lon=77.5929, hours=12, start=None)
+    assert len(r.points) == 12
+    # Consecutive points are exactly one hour apart, starting on the hour.
+    assert r.points[0].when.minute == 0
+    gaps = {
+        (b.when - a.when).total_seconds()
+        for a, b in zip(r.points[:-1], r.points[1:], strict=True)
+    }
+    assert gaps == {3600.0}
+
+
+def test_forecast_identifies_safest_and_riskiest():
+    from app.api.risk import risk_forecast
+
+    r = risk_forecast(lat=12.9763, lon=77.5929, hours=24, start=None)
+    if not r.model_available:
+        return  # model artifact absent in this environment
+
+    scores = [p.risk_score for p in r.points if p.risk_score is not None]
+    assert r.safest.risk_score == min(scores)
+    assert r.riskiest.risk_score == max(scores)
+    assert r.riskiest.risk_score >= r.safest.risk_score
+
+
+def test_forecast_is_stable_within_the_hour():
+    """Snapping to the hour keeps the series cacheable client-side."""
+    from app.api.risk import risk_forecast
+
+    a = risk_forecast(lat=12.9763, lon=77.5929, hours=6, start=None)
+    b = risk_forecast(lat=12.9763, lon=77.5929, hours=6, start=None)
+    assert [p.when for p in a.points] == [p.when for p in b.points]
+    assert [p.risk_score for p in a.points] == [p.risk_score for p in b.points]

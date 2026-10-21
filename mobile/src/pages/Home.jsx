@@ -19,6 +19,8 @@ import { getSync, set, KEYS } from "../lib/storage";
 import { Card, Button, Banner, Input, Field, Sheet } from "../components/ui";
 import StatusCard from "../components/StatusCard";
 import SosButton from "../components/SosButton";
+import Advisories from "../components/Advisories";
+import RiskForecast from "../components/RiskForecast";
 
 export default function Home() {
   const {
@@ -30,6 +32,8 @@ export default function Home() {
   const [err, setErr] = useState(null);
   const [notice, setNotice] = useState(null);
   const [callOpen, setCallOpen] = useState(false);
+  // Prefer the live fix; fall back to the last position the backend holds.
+  const here = fix || status?.last_position || null;
   const [phone, setPhone] = useState(() => getSync(KEYS.phone, ""));
 
   // Clear transient notices so they don't linger across screens.
@@ -131,6 +135,10 @@ export default function Home() {
         mode={mode}
         lastSentAt={lastSentAt}
       />
+
+      <Advisories refreshKey={status?.last_seen} />
+
+      {here && <RiskForecast lat={here.lat} lon={here.lon} title="Risk here today" />}
 
       {/* Tracking controls */}
       <Card className="p-4">

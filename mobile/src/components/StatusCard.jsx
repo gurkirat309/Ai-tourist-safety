@@ -12,6 +12,10 @@ import {
   MapPin,
   Clock,
   Route as RouteIcon,
+  Users,
+  Fence,
+  TimerOff,
+  Activity,
 } from "lucide-react";
 import { Card, Chip, Meter } from "./ui";
 import { STATUS_CONFIG, riskLevel, timeAgo, fmtDistance, titleCase } from "../lib/format";
@@ -22,6 +26,21 @@ const ICONS = {
   critical: Siren,
   no_data: Navigation,
 };
+
+// Per-signal icon, so "too crowded here" doesn't look identical to "you've
+// wandered off your route" at a glance.
+const WARNING_ICONS = {
+  crowd_density: Users,
+  geofence_breach: Fence,
+  inactivity: TimerOff,
+  route_deviation: RouteIcon,
+};
+
+// The LSTM anomaly reports as route_deviation; its source distinguishes it.
+function warningIcon(w) {
+  if (w.source === "ml.trajectory_lstm") return Activity;
+  return WARNING_ICONS[w.type] || TriangleAlert;
+}
 
 export default function StatusCard({ status, tracking, mode, lastSentAt }) {
   const key = status?.status || "no_data";
@@ -117,9 +136,11 @@ export default function StatusCard({ status, tracking, mode, lastSentAt }) {
       {/* Safety warnings — advisory text only, never crime specifics. */}
       {status?.warnings?.length > 0 && (
         <ul className="divide-y divide-slate-100 border-t border-white/70 bg-white">
-          {status.warnings.map((w, i) => (
+          {status.warnings.map((w, i) => {
+            const WIcon = warningIcon(w);
+            return (
             <li key={i} className="flex items-start gap-2.5 px-5 py-3">
-              <TriangleAlert
+              <WIcon
                 size={15}
                 className={`mt-0.5 shrink-0 ${
                   w.severity === "critical" ? "text-rose-500" : "text-amber-500"
@@ -132,7 +153,8 @@ export default function StatusCard({ status, tracking, mode, lastSentAt }) {
                 </p>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </Card>

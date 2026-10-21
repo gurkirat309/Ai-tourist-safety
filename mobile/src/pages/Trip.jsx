@@ -18,6 +18,8 @@ import { riskLevel, fmtDistance, fmtDuration, titleCase } from "../lib/format";
 import { Card, Button, Banner, Meter, Chip } from "../components/ui";
 import PlacePicker from "../components/PlacePicker";
 import MiniMap from "../components/MiniMap";
+import RouteOptions from "../components/RouteOptions";
+import RiskForecast from "../components/RiskForecast";
 
 export default function Trip() {
   const { startDemo, tracking, stop, status } = useTracking();
@@ -36,7 +38,7 @@ export default function Trip() {
     api.zonesGeojson().then(setGeojson).catch(() => {});
   }, []);
 
-  async function plan() {
+  async function plan(prefer = "safest") {
     if (!start || !dest) {
       setErr("Choose both a starting point and a destination.");
       return;
@@ -47,6 +49,7 @@ export default function Trip() {
       const t = await api.planTrip({
         start: { lat: Number(start.lat), lon: Number(start.lon) },
         destination: { lat: Number(dest.lat), lon: Number(dest.lon) },
+        prefer,
       });
       setTrip(t);
     } catch (e) {
@@ -93,7 +96,12 @@ export default function Trip() {
           places={places}
         />
 
-        <Button full icon={RouteIcon} busy={busy === "plan"} onClick={plan}>
+        <Button
+          full
+          icon={RouteIcon}
+          busy={busy === "plan"}
+          onClick={() => plan("safest")}
+        >
           Check route safety
         </Button>
 
@@ -105,6 +113,12 @@ export default function Trip() {
 
       {trip && (
         <>
+          <RouteOptions
+            trip={trip}
+            busy={busy === "plan"}
+            onSelect={(prefer) => plan(prefer)}
+          />
+
           <Card className="overflow-hidden">
             <div className="px-4 pt-4">
               <div className="mb-2 flex items-center justify-between">
@@ -164,6 +178,14 @@ export default function Trip() {
               resizeKey={trip.route?.length}
             />
           </Card>
+
+          {dest && (
+            <RiskForecast
+              lat={Number(dest.lat)}
+              lon={Number(dest.lon)}
+              title={`Risk at ${dest.name}`}
+            />
+          )}
 
           <Card className="space-y-3 p-4">
             <div className="flex items-center gap-2">

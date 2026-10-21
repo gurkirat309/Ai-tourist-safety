@@ -21,6 +21,17 @@ without a rewrite — see [Going native](#going-native).
 
 Beyond the screens:
 
+- **Safer-route alternatives** — several candidate routes are scored against
+  the risk model and the *safest* is recommended, not the fastest, with the
+  cost stated plainly ("2 min slower, 49% lower peak risk"). The tourist can
+  still choose speed.
+- **Risk through the day** — a 24-hour forecast for a place, so "it's fine
+  now" and "it's fine at 11pm" are different questions.
+- **Nearby advisories** — sanitized risk events from the intelligence agent:
+  the kind of thing reported nearby and what to do, never the incident
+  details.
+- **Crowd + movement-anomaly warnings** — congestion and the LSTM
+  trajectory signal now reach the tourist, not just the control room.
 - **Real GPS tracking** — `navigator.geolocation.watchPosition`, with fixes
   sent on a time *or* distance trigger so fast movement is not under-sampled.
 - **Accuracy filtering** — fixes worse than 200 m are dropped, so a
