@@ -1,5 +1,6 @@
 """FastAPI application entrypoint."""
 
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -18,6 +19,7 @@ from app.api import (
     tourists,
     voice,
 )
+from app.api.spa import mount_spa
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 
@@ -69,6 +71,15 @@ def create_app() -> FastAPI:
     app.include_router(police.router)
     app.include_router(voice.router)
     app.include_router(voice.router, prefix="/api")
+
+    # Mounted LAST so every API route above wins the match. No-op when
+    # the app hasn't been built.
+    if settings.serve_app:
+        dist = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", settings.app_dist_dir)
+        )
+        mount_spa(app, dist)
+
     return app
 
 

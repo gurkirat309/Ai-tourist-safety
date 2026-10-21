@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # The tourist PWA and the police dashboard run on their own dev servers,
     # so they are cross-origin and need this. "*" allows any origin.
     cors_origins: str = "http://localhost:8080,http://localhost:8081"
+    # Serve the built tourist PWA from this API, on the same origin.
+    # Lets one https tunnel cover both app and API for phone testing,
+    # and removes CORS entirely. Ignored if the build is missing.
+    serve_app: bool = True
+    app_dist_dir: str = "../mobile/dist"
 
     # Postgres
     postgres_user: str = "tourist"

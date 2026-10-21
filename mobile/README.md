@@ -58,29 +58,63 @@ npm run preview
 
 ---
 
-## Testing on a real phone
+## Testing on a real phone (iPhone / Android)
 
-Browsers expose geolocation **only on secure origins**. `localhost` counts as
-secure; `http://192.168.x.x:8081` does not — location will silently fail there.
+Phones expose geolocation **only on secure (https) origins**, so a plain
+`http://192.168.x.x:8081` will silently fail. The simplest working setup is a
+single https tunnel in front of the backend, which serves the built app on its
+own origin — one tunnel, no CORS, same-origin API calls.
 
-So for a phone test, serve the app over https with a tunnel:
+One command does all of it:
 
-```bash
-ngrok http 8081
+```powershell
+powershell -ExecutionPolicy Bypass -File backend/start-phone.ps1
 ```
 
-Then:
+That starts Postgres + Redis, builds the app, launches ngrok on the fixed
+domain, and runs the backend. Then open the printed https URL on the phone.
 
-1. Set `VITE_API_BASE` in `mobile/.env` to your **API** tunnel URL (the backend
-   needs its own tunnel, or a deployed host).
-2. Add the **app** tunnel origin to `CORS_ORIGINS` in `backend/.env` and
-   restart the backend.
-3. Open the app tunnel URL on the phone → "Add to Home Screen".
+<details>
+<summary>Doing it manually</summary>
 
-> A single-origin deploy avoids all of this: serve `dist/` from the same host
-> as the API and leave `VITE_API_BASE` blank. No CORS, no second tunnel.
+```bash
+cd mobile && npm run build        # uses .env.production -> same-origin API
+cd ../backend && .venv/Scripts/uvicorn app.main:app --host 0.0.0.0 --port 8000
+ngrok http 8000 --url=<your-domain>.ngrok-free.dev
+```
 
----
+</details>
+
+### Install it on an iPhone
+
+1. Open the https URL **in Safari** (iOS only allows Add to Home Screen there).
+2. ngrok's free tier shows a warning page once — tap **Visit Site**.
+3. Tap the **Share** button, then **Add to Home Screen**.
+4. Launch it from the home screen. It runs full-screen with no browser chrome.
+5. On the first SOS or **Start sharing location**, iOS asks for location —
+   choose **Allow While Using App**.
+
+### Notes
+
+- The phone does **not** need to be on the same Wi-Fi — traffic goes through
+  the tunnel. Both devices just need internet.
+- The laptop must stay running; it is the server.
+- `TWILIO_WEBHOOK_BASE_URL` already points at this same domain, so the AI
+  voice call keeps working.
+- Tunnel URL changed? Rebuild is **not** needed — the app calls its own
+  origin, whatever that is.
+- ngrok free shows the interstitial once per browser. If it becomes annoying,
+  [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+  (`cloudflared tunnel --url http://localhost:8000`) is free and shows no
+  warning page.
+
+### iOS limitations to expect
+
+- **Tracking pauses when the app is backgrounded or the screen locks.** This is
+  a browser limit, not a bug. Keep the app open and the screen on while
+  testing a walk. The fix is the native build.
+- No push notifications from an iOS PWA unless installed to the home screen
+  (iOS 16.4+), and this app does not implement push yet.
 
 ## Going native
 

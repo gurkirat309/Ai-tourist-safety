@@ -47,7 +47,12 @@ async function request(path, { method = "GET", body, params, timeout } = {}) {
     if (qs) url += `?${qs}`;
   }
 
-  const headers = {};
+  const headers = {
+    // ngrok's free tier answers browser-looking requests with an interstitial
+    // warning page. Without this header an API call would get that HTML
+    // instead of JSON. Harmless on any other host.
+    "ngrok-skip-browser-warning": "true",
+  };
   if (body) headers["Content-Type"] = "application/json";
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
